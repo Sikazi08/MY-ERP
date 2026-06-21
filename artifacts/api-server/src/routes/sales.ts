@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { db, salesTable, productsTable, clientsTable, movementsTable } from "@workspace/db";
-import { eq, ilike, or, and, gte, lte } from "drizzle-orm";
+import { db, salesTable, productsTable, clientsTable, movementsTable, sellersTable } from "@workspace/db";
+import { eq, ilike, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 
 const router = Router();
@@ -8,7 +8,7 @@ const router = Router();
 function nowDateStr() { return new Date().toISOString().split("T")[0]; }
 function nowTimeStr() { return new Date().toTimeString().slice(0, 8); }
 
-async function generateProductId(db: typeof import("@workspace/db").db): Promise<string> {
+async function generateProductId(): Promise<string> {
   const products = await db.select({ productId: productsTable.productId }).from(productsTable).orderBy(productsTable.id);
   const max = products.reduce((acc, p) => {
     const num = parseInt(p.productId.replace("TH", ""), 10);
@@ -20,7 +20,7 @@ async function generateProductId(db: typeof import("@workspace/db").db): Promise
 router.get("/", requireAuth, async (req, res): Promise<void> => {
   const { search, dateFrom, dateTo, paymentMode } = req.query as Record<string, string>;
 
-  let rows = await db.select().from(salesTable)
+  const rows = await db.select().from(salesTable)
     .leftJoin(productsTable, eq(salesTable.productId, productsTable.id))
     .orderBy(salesTable.saleDate);
 
@@ -44,6 +44,7 @@ router.get("/", requireAuth, async (req, res): Promise<void> => {
       const match = (
         s.clientName?.toLowerCase().includes(q) ||
         s.clientPhone?.toLowerCase().includes(q) ||
+        s.vendorName?.toLowerCase().includes(q) ||
         s.product?.imei?.toLowerCase().includes(q) ||
         s.product?.product?.toLowerCase().includes(q) ||
         s.product?.productId?.toLowerCase().includes(q)
@@ -61,6 +62,7 @@ router.get("/", requireAuth, async (req, res): Promise<void> => {
 
 router.post("/", requireAuth, async (req, res): Promise<void> => {
   const { productId, saleType, paymentMode, amount, clientName, clientPhone,
+    vendorId, vendorName,
     trocImei, trocProduct, trocBrand, trocCapacity, trocColor } = req.body;
 
   if (!productId || !saleType || !paymentMode || !amount) {
@@ -70,7 +72,7 @@ router.post("/", requireAuth, async (req, res): Promise<void> => {
 
   const [product] = await db.select().from(productsTable).where(eq(productsTable.id, parseInt(productId))).limit(1);
   if (!product) { res.status(404).json({ error: "Produit non trouvé" }); return; }
-  if (product.status !== "en_stock") { res.status(400).json({ error: "Ce produit n'est pas en stock" }); return; }
+  if (product.status === "vendu") { res.status(400).json({ error: "Ce produit est déjà vendu" }); return; }
 
   const today = nowDateStr();
   const time = nowTimeStr();
@@ -91,14 +93,27 @@ router.post("/", requireAuth, async (req, res): Promise<void> => {
     }
   }
 
+  let resolvedVendorName: string | null = null;
+  let resolvedVendorId: number | null = null;
+
+  if (vendorId) {
+    const [vendor] = await db.select().from(sellersTable).where(eq(sellersTable.id, parseInt(vendorId))).limit(1);
+    if (vendor) {
+      resolvedVendorId = vendor.id;
+      resolvedVendorName = vendor.name;
+    }
+  } else if (vendorName) {
+    resolvedVendorName = vendorName;
+  }
+
   let trocProductId: number | null = null;
-  if (saleType === "troc" && trocProduct && trocBrand) {
-    const trocProdId = await generateProductId(db);
+  if (saleType === "troc" && trocProduct) {
+    const trocProdId = await generateProductId();
     const [trocRow] = await db.insert(productsTable).values({
       productId: trocProdId,
       imei: trocImei || null,
       product: trocProduct,
-      brand: trocBrand,
+      brand: trocBrand || null,
       capacity: trocCapacity || null,
       color: trocColor || null,
       status: "en_stock",
@@ -114,7 +129,7 @@ router.post("/", requireAuth, async (req, res): Promise<void> => {
       productId: trocRow.id,
       productRef: trocRow.productId,
       imei: trocRow.imei,
-      description: `Entrée troc: ${trocProduct} ${trocBrand} (${trocProdId})`,
+      description: `Entrée troc: ${trocProduct}${trocBrand ? " " + trocBrand : ""} (${trocProdId})`,
     });
   }
 
@@ -127,6 +142,8 @@ router.post("/", requireAuth, async (req, res): Promise<void> => {
     clientName: clientName || null,
     clientPhone: clientPhone || null,
     sellerId: req.session!.userId!,
+    vendorId: resolvedVendorId,
+    vendorName: resolvedVendorName,
     saleDate: today,
     saleTime: time,
     cancelled: false,
@@ -143,7 +160,7 @@ router.post("/", requireAuth, async (req, res): Promise<void> => {
     productId: parseInt(productId),
     productRef: product.productId,
     imei: product.imei,
-    description: `Vente ${saleType === "troc" ? "(Troc) " : ""}${product.product} ${product.brand} - ${amount} FCFA - ${paymentMode}${clientName ? " - " + clientName : ""}`,
+    description: `Vente ${saleType === "troc" ? "(Troc) " : ""}${product.product}${product.brand ? " " + product.brand : ""} - ${amount} FCFA - ${paymentMode}${clientName ? " - " + clientName : ""}${resolvedVendorName ? " (Vendeur: " + resolvedVendorName + ")" : ""}`,
   });
 
   res.status(201).json({ ...sale, amount: Number(sale.amount) });

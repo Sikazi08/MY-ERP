@@ -10,12 +10,12 @@ import type { ProductInputStatus } from './productInputStatus';
 export interface ProductInput {
   imei?: string;
   product: string;
-  brand: string;
+  brand?: string;
   capacity?: string;
   color?: string;
   supplier?: string;
   purchasePrice?: number;
   sellingPrice?: number;
-  status: ProductInputStatus;
+  status?: ProductInputStatus;
   entryDate: Date;
 }

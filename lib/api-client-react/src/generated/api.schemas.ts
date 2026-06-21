@@ -80,7 +80,8 @@ export interface Product {
   /** @nullable */
   imei?: string | null;
   product: string;
-  brand: string;
+  /** @nullable */
+  brand?: string | null;
   /** @nullable */
   capacity?: string | null;
   /** @nullable */
@@ -106,6 +107,13 @@ export interface Product {
   createdAt: string;
 }
 
+export interface ProductPage {
+  data: Product[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
 export type ProductInputStatus = typeof ProductInputStatus[keyof typeof ProductInputStatus];
 
 
@@ -118,13 +126,13 @@ export const ProductInputStatus = {
 export interface ProductInput {
   imei?: string;
   product: string;
-  brand: string;
+  brand?: string;
   capacity?: string;
   color?: string;
   supplier?: string;
   purchasePrice?: number;
   sellingPrice?: number;
-  status: ProductInputStatus;
+  status?: ProductInputStatus;
   entryDate: string;
 }
 
@@ -182,6 +190,10 @@ export interface Sale {
   clientPhone?: string | null;
   sellerId: number;
   seller?: User;
+  /** @nullable */
+  vendorId?: number | null;
+  /** @nullable */
+  vendorName?: string | null;
   saleDate: string;
   saleTime: string;
   cancelled?: boolean;
@@ -219,6 +231,8 @@ export interface SaleInput {
   amount: number;
   clientName?: string;
   clientPhone?: string;
+  vendorId?: number;
+  vendorName?: string;
   trocImei?: string;
   trocProduct?: string;
   trocBrand?: string;
@@ -425,10 +439,56 @@ export interface PaymentBreakdown {
   period?: string;
 }
 
+export interface Seller {
+  id: number;
+  name: string;
+  /** @nullable */
+  phone?: string | null;
+  /** @nullable */
+  address?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface SellerInput {
+  name: string;
+  phone?: string;
+  address?: string;
+  notes?: string;
+}
+
+export interface SellerUpdate {
+  name?: string;
+  phone?: string;
+  address?: string;
+  notes?: string;
+  isActive?: boolean;
+}
+
+export interface ImportResult {
+  imported: number;
+  duplicates: number;
+  errors: number;
+  duplicateNames?: string[];
+  errorMessages?: string[];
+}
+
+export interface SearchResult {
+  products: Product[];
+  sales: Sale[];
+  clients: Client[];
+  partners: Partner[];
+}
+
 export type ListProductsParams = {
 status?: string;
 search?: string;
-brand?: string;
+dateFrom?: string;
+dateTo?: string;
+page?: number;
+limit?: number;
 };
 
 export type ListSalesParams = {
@@ -483,4 +543,16 @@ export const GetPaymentBreakdownPeriod = {
   week: 'week',
   month: 'month',
 } as const;
+
+export type ListSellersParams = {
+activeOnly?: string;
+};
+
+export type GlobalSearchParams = {
+q: string;
+};
+
+export type ImportClientsBody = {
+  file?: Blob;
+};
 

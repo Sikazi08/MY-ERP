@@ -14,7 +14,8 @@ export interface Product {
   /** @nullable */
   imei?: string | null;
   product: string;
-  brand: string;
+  /** @nullable */
+  brand?: string | null;
   /** @nullable */
   capacity?: string | null;
   /** @nullable */

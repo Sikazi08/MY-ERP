@@ -10,6 +10,8 @@ import clientsRouter from "./clients";
 import movementsRouter from "./movements";
 import statsRouter from "./stats";
 import exportsRouter from "./exports";
+import sellersRouter from "./sellers";
+import searchRouter from "./search";
 
 const router: IRouter = Router();
 
@@ -24,5 +26,7 @@ router.use("/clients", clientsRouter);
 router.use("/movements", movementsRouter);
 router.use("/stats", statsRouter);
 router.use("/exports", exportsRouter);
+router.use("/sellers", sellersRouter);
+router.use("/search", searchRouter);
 
 export default router;

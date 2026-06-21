@@ -9,7 +9,7 @@ export const productsTable = pgTable("products", {
   productId: text("product_id").notNull().unique(),
   imei: text("imei"),
   product: text("product").notNull(),
-  brand: text("brand").notNull(),
+  brand: text("brand"),
   capacity: text("capacity"),
   color: text("color"),
   supplier: text("supplier"),

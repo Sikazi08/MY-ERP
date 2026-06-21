@@ -17,6 +17,7 @@ import Mouvements from "@/pages/mouvements";
 import Clients from "@/pages/clients";
 import Statistiques from "@/pages/statistiques";
 import Utilisateurs from "@/pages/utilisateurs";
+import Vendeurs from "@/pages/vendeurs";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -65,6 +66,7 @@ function MouvementsRoute() { return <ProtectedRoute component={Mouvements} />; }
 function ClientsRoute() { return <ProtectedRoute component={Clients} adminOnly />; }
 function StatistiquesRoute() { return <ProtectedRoute component={Statistiques} adminOnly />; }
 function UtilisateursRoute() { return <ProtectedRoute component={Utilisateurs} adminOnly />; }
+function VendeursRoute() { return <ProtectedRoute component={Vendeurs} adminOnly />; }
 
 function Router() {
   return (
@@ -77,6 +79,7 @@ function Router() {
       <Route path="/depenses" component={DepensesRoute} />
       <Route path="/mouvements" component={MouvementsRoute} />
       <Route path="/clients" component={ClientsRoute} />
+      <Route path="/vendeurs" component={VendeursRoute} />
       <Route path="/statistiques" component={StatistiquesRoute} />
       <Route path="/utilisateurs" component={UtilisateursRoute} />
       <Route component={NotFound} />

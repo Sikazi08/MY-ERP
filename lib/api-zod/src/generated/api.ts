@@ -108,15 +108,19 @@ export const DeleteUserParams = zod.object({
 export const ListProductsQueryParams = zod.object({
   "status": zod.coerce.string().optional(),
   "search": zod.coerce.string().optional(),
-  "brand": zod.coerce.string().optional()
+  "dateFrom": zod.coerce.string().optional(),
+  "dateTo": zod.coerce.string().optional(),
+  "page": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().optional()
 })
 
-export const ListProductsResponseItem = zod.object({
+export const ListProductsResponse = zod.object({
+  "data": zod.array(zod.object({
   "id": zod.number(),
   "productId": zod.string().describe('Auto-generated like TH001'),
   "imei": zod.string().nullish(),
   "product": zod.string(),
-  "brand": zod.string(),
+  "brand": zod.string().nullish(),
   "capacity": zod.string().nullish(),
   "color": zod.string().nullish(),
   "supplier": zod.string().nullish(),
@@ -127,8 +131,11 @@ export const ListProductsResponseItem = zod.object({
   "entryDate": zod.coerce.date(),
   "saleDate": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
 })
-export const ListProductsResponse = zod.array(ListProductsResponseItem)
 
 
 /**
@@ -137,13 +144,13 @@ export const ListProductsResponse = zod.array(ListProductsResponseItem)
 export const CreateProductBody = zod.object({
   "imei": zod.string().optional(),
   "product": zod.string(),
-  "brand": zod.string(),
+  "brand": zod.string().optional(),
   "capacity": zod.string().optional(),
   "color": zod.string().optional(),
   "supplier": zod.string().optional(),
   "purchasePrice": zod.number().optional(),
   "sellingPrice": zod.number().optional(),
-  "status": zod.enum(['en_stock', 'chez_partenaire', 'vendu']),
+  "status": zod.enum(['en_stock', 'chez_partenaire', 'vendu']).optional(),
   "entryDate": zod.coerce.date()
 })
 
@@ -160,7 +167,7 @@ export const GetProductResponse = zod.object({
   "productId": zod.string().describe('Auto-generated like TH001'),
   "imei": zod.string().nullish(),
   "product": zod.string(),
-  "brand": zod.string(),
+  "brand": zod.string().nullish(),
   "capacity": zod.string().nullish(),
   "color": zod.string().nullish(),
   "supplier": zod.string().nullish(),
@@ -199,7 +206,7 @@ export const UpdateProductResponse = zod.object({
   "productId": zod.string().describe('Auto-generated like TH001'),
   "imei": zod.string().nullish(),
   "product": zod.string(),
-  "brand": zod.string(),
+  "brand": zod.string().nullish(),
   "capacity": zod.string().nullish(),
   "color": zod.string().nullish(),
   "supplier": zod.string().nullish(),
@@ -239,7 +246,7 @@ export const ListSalesResponseItem = zod.object({
   "productId": zod.string().describe('Auto-generated like TH001'),
   "imei": zod.string().nullish(),
   "product": zod.string(),
-  "brand": zod.string(),
+  "brand": zod.string().nullish(),
   "capacity": zod.string().nullish(),
   "color": zod.string().nullish(),
   "supplier": zod.string().nullish(),
@@ -265,6 +272,8 @@ export const ListSalesResponseItem = zod.object({
   "role": zod.enum(['admin', 'secretary']),
   "createdAt": zod.coerce.date()
 }).optional(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
   "saleDate": zod.coerce.date(),
   "saleTime": zod.string(),
   "cancelled": zod.boolean().optional(),
@@ -285,6 +294,8 @@ export const CreateSaleBody = zod.object({
   "amount": zod.number(),
   "clientName": zod.string().optional(),
   "clientPhone": zod.string().optional(),
+  "vendorId": zod.number().optional(),
+  "vendorName": zod.string().optional(),
   "trocImei": zod.string().optional(),
   "trocProduct": zod.string().optional(),
   "trocBrand": zod.string().optional(),
@@ -312,7 +323,7 @@ export const CancelSaleResponse = zod.object({
   "productId": zod.string().describe('Auto-generated like TH001'),
   "imei": zod.string().nullish(),
   "product": zod.string(),
-  "brand": zod.string(),
+  "brand": zod.string().nullish(),
   "capacity": zod.string().nullish(),
   "color": zod.string().nullish(),
   "supplier": zod.string().nullish(),
@@ -338,6 +349,8 @@ export const CancelSaleResponse = zod.object({
   "role": zod.enum(['admin', 'secretary']),
   "createdAt": zod.coerce.date()
 }).optional(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
   "saleDate": zod.coerce.date(),
   "saleTime": zod.string(),
   "cancelled": zod.boolean().optional(),
@@ -436,7 +449,7 @@ export const ReturnProductFromPartnerResponse = zod.object({
   "productId": zod.string().describe('Auto-generated like TH001'),
   "imei": zod.string().nullish(),
   "product": zod.string(),
-  "brand": zod.string(),
+  "brand": zod.string().nullish(),
   "capacity": zod.string().nullish(),
   "color": zod.string().nullish(),
   "supplier": zod.string().nullish(),
@@ -474,7 +487,7 @@ export const ListPartnerMovementsResponseItem = zod.object({
   "productId": zod.string().describe('Auto-generated like TH001'),
   "imei": zod.string().nullish(),
   "product": zod.string(),
-  "brand": zod.string(),
+  "brand": zod.string().nullish(),
   "capacity": zod.string().nullish(),
   "color": zod.string().nullish(),
   "supplier": zod.string().nullish(),
@@ -621,7 +634,7 @@ export const GetClientResponse = zod.object({
   "productId": zod.string().describe('Auto-generated like TH001'),
   "imei": zod.string().nullish(),
   "product": zod.string(),
-  "brand": zod.string(),
+  "brand": zod.string().nullish(),
   "capacity": zod.string().nullish(),
   "color": zod.string().nullish(),
   "supplier": zod.string().nullish(),
@@ -647,6 +660,8 @@ export const GetClientResponse = zod.object({
   "role": zod.enum(['admin', 'secretary']),
   "createdAt": zod.coerce.date()
 }).optional(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
   "saleDate": zod.coerce.date(),
   "saleTime": zod.string(),
   "cancelled": zod.boolean().optional(),
@@ -728,7 +743,7 @@ export const GetDashboardStatsResponse = zod.object({
   "productId": zod.string().describe('Auto-generated like TH001'),
   "imei": zod.string().nullish(),
   "product": zod.string(),
-  "brand": zod.string(),
+  "brand": zod.string().nullish(),
   "capacity": zod.string().nullish(),
   "color": zod.string().nullish(),
   "supplier": zod.string().nullish(),
@@ -797,6 +812,226 @@ export const GetPaymentBreakdownResponse = zod.object({
   "cash": zod.number(),
   "total": zod.number(),
   "period": zod.string().optional()
+})
+
+
+/**
+ * @summary List sellers
+ */
+export const ListSellersQueryParams = zod.object({
+  "activeOnly": zod.coerce.string().optional()
+})
+
+export const ListSellersResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "phone": zod.string().nullish(),
+  "address": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+export const ListSellersResponse = zod.array(ListSellersResponseItem)
+
+
+/**
+ * @summary Create seller (admin only)
+ */
+export const CreateSellerBody = zod.object({
+  "name": zod.string(),
+  "phone": zod.string().optional(),
+  "address": zod.string().optional(),
+  "notes": zod.string().optional()
+})
+
+
+/**
+ * @summary Update seller (admin only)
+ */
+export const UpdateSellerParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateSellerBody = zod.object({
+  "name": zod.string().optional(),
+  "phone": zod.string().optional(),
+  "address": zod.string().optional(),
+  "notes": zod.string().optional(),
+  "isActive": zod.boolean().optional()
+})
+
+export const UpdateSellerResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "phone": zod.string().nullish(),
+  "address": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete seller (admin only)
+ */
+export const DeleteSellerParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Get sales for a seller (admin only)
+ */
+export const GetSellerSalesParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetSellerSalesResponseItem = zod.object({
+  "id": zod.number(),
+  "productId": zod.number(),
+  "product": zod.object({
+  "id": zod.number(),
+  "productId": zod.string().describe('Auto-generated like TH001'),
+  "imei": zod.string().nullish(),
+  "product": zod.string(),
+  "brand": zod.string().nullish(),
+  "capacity": zod.string().nullish(),
+  "color": zod.string().nullish(),
+  "supplier": zod.string().nullish(),
+  "purchasePrice": zod.number().nullish().describe('Hidden from secretary'),
+  "sellingPrice": zod.number().nullish(),
+  "profit": zod.number().nullish().describe('Calculated: sellingPrice - purchasePrice'),
+  "status": zod.enum(['en_stock', 'chez_partenaire', 'vendu']),
+  "entryDate": zod.coerce.date(),
+  "saleDate": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+}).optional(),
+  "saleType": zod.enum(['normal', 'troc']),
+  "paymentMode": zod.enum(['OM', 'MOMO', 'Cash']),
+  "amount": zod.number(),
+  "clientId": zod.number().nullish(),
+  "clientName": zod.string().nullish(),
+  "clientPhone": zod.string().nullish(),
+  "sellerId": zod.number(),
+  "seller": zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "fullName": zod.string(),
+  "role": zod.enum(['admin', 'secretary']),
+  "createdAt": zod.coerce.date()
+}).optional(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "saleDate": zod.coerce.date(),
+  "saleTime": zod.string(),
+  "cancelled": zod.boolean().optional(),
+  "cancellationReason": zod.string().nullish(),
+  "trocProductId": zod.number().nullish().describe('ID of product received in troc'),
+  "createdAt": zod.coerce.date()
+})
+export const GetSellerSalesResponse = zod.array(GetSellerSalesResponseItem)
+
+
+/**
+ * @summary Global search across all entities
+ */
+export const GlobalSearchQueryParams = zod.object({
+  "q": zod.coerce.string()
+})
+
+export const GlobalSearchResponse = zod.object({
+  "products": zod.array(zod.object({
+  "id": zod.number(),
+  "productId": zod.string().describe('Auto-generated like TH001'),
+  "imei": zod.string().nullish(),
+  "product": zod.string(),
+  "brand": zod.string().nullish(),
+  "capacity": zod.string().nullish(),
+  "color": zod.string().nullish(),
+  "supplier": zod.string().nullish(),
+  "purchasePrice": zod.number().nullish().describe('Hidden from secretary'),
+  "sellingPrice": zod.number().nullish(),
+  "profit": zod.number().nullish().describe('Calculated: sellingPrice - purchasePrice'),
+  "status": zod.enum(['en_stock', 'chez_partenaire', 'vendu']),
+  "entryDate": zod.coerce.date(),
+  "saleDate": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})),
+  "sales": zod.array(zod.object({
+  "id": zod.number(),
+  "productId": zod.number(),
+  "product": zod.object({
+  "id": zod.number(),
+  "productId": zod.string().describe('Auto-generated like TH001'),
+  "imei": zod.string().nullish(),
+  "product": zod.string(),
+  "brand": zod.string().nullish(),
+  "capacity": zod.string().nullish(),
+  "color": zod.string().nullish(),
+  "supplier": zod.string().nullish(),
+  "purchasePrice": zod.number().nullish().describe('Hidden from secretary'),
+  "sellingPrice": zod.number().nullish(),
+  "profit": zod.number().nullish().describe('Calculated: sellingPrice - purchasePrice'),
+  "status": zod.enum(['en_stock', 'chez_partenaire', 'vendu']),
+  "entryDate": zod.coerce.date(),
+  "saleDate": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+}).optional(),
+  "saleType": zod.enum(['normal', 'troc']),
+  "paymentMode": zod.enum(['OM', 'MOMO', 'Cash']),
+  "amount": zod.number(),
+  "clientId": zod.number().nullish(),
+  "clientName": zod.string().nullish(),
+  "clientPhone": zod.string().nullish(),
+  "sellerId": zod.number(),
+  "seller": zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "fullName": zod.string(),
+  "role": zod.enum(['admin', 'secretary']),
+  "createdAt": zod.coerce.date()
+}).optional(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "saleDate": zod.coerce.date(),
+  "saleTime": zod.string(),
+  "cancelled": zod.boolean().optional(),
+  "cancellationReason": zod.string().nullish(),
+  "trocProductId": zod.number().nullish().describe('ID of product received in troc'),
+  "createdAt": zod.coerce.date()
+})),
+  "clients": zod.array(zod.object({
+  "id": zod.number(),
+  "fullName": zod.string(),
+  "phone": zod.string().nullish(),
+  "purchaseCount": zod.number().optional(),
+  "totalPurchases": zod.number().optional(),
+  "lastPurchaseDate": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})),
+  "partners": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "phone": zod.string().nullish(),
+  "address": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Import clients from Excel/CSV (admin only)
+ */
+export const ImportClientsBody = zod.object({
+  "file": zod.instanceof(File).optional()
+})
+
+export const ImportClientsResponse = zod.object({
+  "imported": zod.number(),
+  "duplicates": zod.number(),
+  "errors": zod.number(),
+  "duplicateNames": zod.array(zod.string()).optional(),
+  "errorMessages": zod.array(zod.string()).optional()
 })
 
 

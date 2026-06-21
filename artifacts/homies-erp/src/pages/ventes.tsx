@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { useListSales, useCreateSale, useCancelSale, getListSalesQueryKey, useListProducts, getListProductsQueryKey } from "@workspace/api-client-react";
+import {
+  useListSales, useCreateSale, useCancelSale,
+  getListSalesQueryKey, useListProducts, getListProductsQueryKey,
+  useListSellers,
+} from "@workspace/api-client-react";
 import type { SaleInput } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatFCFA, formatDateFr } from "@/lib/format";
@@ -21,9 +25,18 @@ export default function Ventes() {
   const [search, setSearch] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
 
-  const { data: sales = [], isLoading } = useListSales({ search: search || undefined }, { query: { queryKey: getListSalesQueryKey({ search: search || undefined }) } });
-  
-  const { data: enStockProducts = [] } = useListProducts({ status: "en_stock" }, { query: { queryKey: getListProductsQueryKey({ status: "en_stock" }) } });
+  const { data: sales = [], isLoading } = useListSales(
+    { search: search || undefined },
+    { query: { queryKey: getListSalesQueryKey({ search: search || undefined }) } }
+  );
+
+  const { data: productsPage } = useListProducts(
+    { status: "en_stock", limit: 500 },
+    { query: { queryKey: getListProductsQueryKey({ status: "en_stock", limit: 500 }) } }
+  );
+  const enStockProducts = productsPage?.data ?? [];
+
+  const { data: sellers = [] } = useListSellers({ activeOnly: "true" });
 
   const createMutation = useCreateSale();
   const cancelMutation = useCancelSale();
@@ -35,7 +48,7 @@ export default function Ventes() {
       amount: 0,
       clientName: "",
       clientPhone: "",
-    }
+    },
   });
 
   const watchSaleType = form.watch("saleType");
@@ -44,13 +57,16 @@ export default function Ventes() {
   const onSubmit = (data: SaleInput) => {
     createMutation.mutate({ data }, {
       onSuccess: () => {
-        toast.success("Votre vente a été enregistrée avec succès.");
+        toast.success("Vente enregistrée avec succès");
         queryClient.invalidateQueries({ queryKey: getListSalesQueryKey() });
         queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
         setIsAddOpen(false);
         form.reset();
       },
-      onError: () => toast.error("Erreur lors de l'enregistrement de la vente")
+      onError: (e: unknown) => {
+        const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
+        toast.error(msg || "Erreur lors de l'enregistrement");
+      },
     });
   };
 
@@ -59,15 +75,11 @@ export default function Ventes() {
     if (reason) {
       cancelMutation.mutate({ id, data: { reason } }, {
         onSuccess: () => {
-          toast.success("Vente annulée avec succès");
+          toast.success("Vente annulée");
           queryClient.invalidateQueries({ queryKey: getListSalesQueryKey() });
-        }
+        },
       });
     }
-  };
-
-  const handleExport = () => {
-    window.open('/api/exports/sales', '_blank');
   };
 
   const selectedProductData = enStockProducts.find(p => p.id === Number(watchProductId));
@@ -77,47 +89,45 @@ export default function Ventes() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-3xl font-bold tracking-tight">Historique des Ventes</h1>
         <div className="flex gap-2 w-full sm:w-auto">
-          <Button variant="outline" onClick={handleExport} className="w-full sm:w-auto">
-            <Download className="mr-2 h-4 w-4" />
-            Exporter
+          <Button variant="outline" onClick={() => window.open('/api/exports/sales', '_blank')} className="w-full sm:w-auto">
+            <Download className="mr-2 h-4 w-4" /> Exporter
           </Button>
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger asChild>
-              <Button className="w-full sm:w-auto">
-                <Plus className="mr-2 h-4 w-4" />
-                Nouvelle Vente
-              </Button>
+              <Button className="w-full sm:w-auto"><Plus className="mr-2 h-4 w-4" /> Nouvelle Vente</Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto bg-card border-border text-foreground">
-              <DialogHeader>
-                <DialogTitle>Enregistrer une vente</DialogTitle>
-              </DialogHeader>
+              <DialogHeader><DialogTitle>Enregistrer une vente</DialogTitle></DialogHeader>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  
+
                   <FormField control={form.control} name="productId" render={({ field }) => (
                     <FormItem>
                       <FormLabel>Produit vendu</FormLabel>
                       <Select onValueChange={(val) => {
                         field.onChange(Number(val));
                         const p = enStockProducts.find(x => x.id === Number(val));
-                        if(p && p.sellingPrice) form.setValue("amount", p.sellingPrice);
+                        if (p?.sellingPrice) form.setValue("amount", p.sellingPrice);
                       }}>
                         <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Sélectionner un produit en stock" />
-                          </SelectTrigger>
+                          <SelectTrigger><SelectValue placeholder="Sélectionner un produit en stock" /></SelectTrigger>
                         </FormControl>
                         <SelectContent>
                           {enStockProducts.map(p => (
                             <SelectItem key={p.id} value={p.id.toString()}>
-                              {p.productId} - {p.product} - {formatFCFA(p.sellingPrice)}
+                              {p.productId} — {p.product}{p.brand ? ` ${p.brand}` : ""}{p.capacity ? ` ${p.capacity}` : ""} — {formatFCFA(p.sellingPrice)}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </FormItem>
                   )} />
+
+                  {selectedProductData && (
+                    <div className="text-xs text-muted-foreground bg-muted/30 rounded px-3 py-2 border border-border">
+                      IMEI : {selectedProductData.imei || "—"} · Couleur : {selectedProductData.color || "—"}
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-2 gap-4">
                     <FormField control={form.control} name="saleType" render={({ field }) => (
@@ -154,26 +164,39 @@ export default function Ventes() {
                         <FormControl><Input type="number" {...field} onChange={e => field.onChange(Number(e.target.value))} required /></FormControl>
                       </FormItem>
                     )} />
+                    {sellers.length > 0 && (
+                      <FormField control={form.control} name="vendorId" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Vendeur externe (Optionnel)</FormLabel>
+                          <Select onValueChange={(val) => {
+                            const id = Number(val);
+                            field.onChange(id || undefined);
+                            const s = sellers.find(x => x.id === id);
+                            if (s) form.setValue("vendorName", s.name);
+                          }} value={field.value?.toString() ?? ""}>
+                            <FormControl><SelectTrigger><SelectValue placeholder="Aucun" /></SelectTrigger></FormControl>
+                            <SelectContent>
+                              <SelectItem value="0">Aucun</SelectItem>
+                              {sellers.map(s => <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </FormItem>
+                      )} />
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <FormField control={form.control} name="clientName" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Nom du client (Optionnel)</FormLabel>
-                        <FormControl><Input {...field} /></FormControl>
-                      </FormItem>
+                      <FormItem><FormLabel>Nom du client (Optionnel)</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
                     )} />
                     <FormField control={form.control} name="clientPhone" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Téléphone (Optionnel)</FormLabel>
-                        <FormControl><Input {...field} /></FormControl>
-                      </FormItem>
+                      <FormItem><FormLabel>Téléphone (Optionnel)</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
                     )} />
                   </div>
 
                   {watchSaleType === "troc" && (
                     <div className="border border-primary/30 bg-primary/5 p-4 rounded-lg space-y-4">
-                      <h4 className="font-semibold text-primary">Informations de l'appareil reçu en Troc</h4>
+                      <h4 className="font-semibold text-primary">Appareil reçu en Troc</h4>
                       <div className="grid grid-cols-2 gap-4">
                         <FormField control={form.control} name="trocProduct" render={({ field }) => (
                           <FormItem><FormLabel>Produit</FormLabel><FormControl><Input {...field} required={watchSaleType === "troc"} /></FormControl></FormItem>
@@ -204,12 +227,8 @@ export default function Ventes() {
       <div className="flex gap-4 items-center bg-card p-4 rounded-lg border border-border">
         <div className="relative w-full sm:w-[300px]">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-          <Input 
-            placeholder="Recherche (Client, Produit, IMEI...)" 
-            className="pl-9 bg-background border-border"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+          <Input placeholder="Recherche (Client, Produit, IMEI...)" className="pl-9 bg-background border-border"
+            value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
       </div>
 
@@ -220,7 +239,8 @@ export default function Ventes() {
               <TableHead>Date & Heure</TableHead>
               <TableHead>Produit</TableHead>
               <TableHead>Client</TableHead>
-              <TableHead>Mode Paiement</TableHead>
+              <TableHead>Vendeur</TableHead>
+              <TableHead>Mode</TableHead>
               <TableHead>Type</TableHead>
               <TableHead className="text-right">Montant</TableHead>
               <TableHead>Actions</TableHead>
@@ -228,23 +248,27 @@ export default function Ventes() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={7} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="h-24 text-center">
+                <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />
+              </TableCell></TableRow>
             ) : sales.length === 0 ? (
-              <TableRow><TableCell colSpan={7} className="h-24 text-center text-muted-foreground">Aucune vente trouvée.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="h-24 text-center text-muted-foreground">Aucune vente trouvée.</TableCell></TableRow>
             ) : (
               sales.map((sale) => (
                 <TableRow key={sale.id} className={`border-border ${sale.cancelled ? "opacity-50" : ""}`}>
                   <TableCell className="text-sm">
-                    {formatDateFr(sale.saleDate)} <br/><span className="text-muted-foreground text-xs">{sale.saleTime.substring(0,5)}</span>
+                    {formatDateFr(sale.saleDate)}<br />
+                    <span className="text-muted-foreground text-xs">{sale.saleTime.substring(0, 5)}</span>
                   </TableCell>
                   <TableCell>
                     <div className="font-medium">{sale.product?.product || "-"}</div>
-                    <div className="text-xs text-muted-foreground">{sale.product?.productId} | {sale.product?.imei}</div>
+                    <div className="text-xs text-muted-foreground font-mono">{sale.product?.productId} {sale.product?.imei ? `· ${sale.product.imei}` : ""}</div>
                   </TableCell>
                   <TableCell>
                     <div>{sale.clientName || "-"}</div>
                     <div className="text-xs text-muted-foreground">{sale.clientPhone}</div>
                   </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{sale.vendorName || "-"}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className="bg-background">{sale.paymentMode}</Badge>
                   </TableCell>
@@ -253,12 +277,11 @@ export default function Ventes() {
                       {sale.saleType === "normal" ? "Normal" : "Troc"}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right font-bold text-foreground">
-                    {formatFCFA(sale.amount)}
-                  </TableCell>
+                  <TableCell className="text-right font-bold">{formatFCFA(sale.amount)}</TableCell>
                   <TableCell>
                     {!sale.cancelled ? (
-                      <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleCancelSale(sale.id)}>
+                      <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => handleCancelSale(sale.id)}>
                         <Ban className="h-4 w-4" />
                       </Button>
                     ) : (

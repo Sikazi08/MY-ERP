@@ -15,6 +15,8 @@ export interface SaleInput {
   amount: number;
   clientName?: string;
   clientPhone?: string;
+  vendorId?: number;
+  vendorName?: string;
   trocImei?: string;
   trocProduct?: string;
   trocBrand?: string;

@@ -25,6 +25,10 @@ export interface Sale {
   clientPhone?: string | null;
   sellerId: number;
   seller?: User;
+  /** @nullable */
+  vendorId?: number | null;
+  /** @nullable */
+  vendorName?: string | null;
   saleDate: Date;
   saleTime: string;
   cancelled?: boolean;

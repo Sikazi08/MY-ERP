@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 import { productsTable } from "./products";
 import { usersTable } from "./users";
 import { clientsTable } from "./clients";
+import { sellersTable } from "./sellers";
 
 export const saleTypeEnum = pgEnum("sale_type", ["normal", "troc"]);
 export const paymentModeEnum = pgEnum("payment_mode", ["OM", "MOMO", "Cash"]);
@@ -18,6 +19,8 @@ export const salesTable = pgTable("sales", {
   clientName: text("client_name"),
   clientPhone: text("client_phone"),
   sellerId: integer("seller_id").notNull().references(() => usersTable.id),
+  vendorId: integer("vendor_id").references(() => sellersTable.id),
+  vendorName: text("vendor_name"),
   saleDate: date("sale_date", { mode: "string" }).notNull(),
   saleTime: text("sale_time").notNull(),
   cancelled: boolean("cancelled").notNull().default(false),

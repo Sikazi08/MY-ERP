@@ -9,5 +9,8 @@
 export type ListProductsParams = {
 status?: string;
 search?: string;
-brand?: string;
+dateFrom?: string;
+dateTo?: string;
+page?: number;
+limit?: number;
 };

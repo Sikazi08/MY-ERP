@@ -15,6 +15,7 @@ import {
   Settings,
   LogOut,
   Menu,
+  UserCog,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +28,7 @@ const navItems = [
   { href: "/depenses", label: "Dépenses", icon: Wallet, adminOnly: false },
   { href: "/mouvements", label: "Mouvements", icon: ArrowRightLeft, adminOnly: false },
   { href: "/clients", label: "Clients", icon: UsersRound, adminOnly: true },
+  { href: "/vendeurs", label: "Vendeurs", icon: UserCog, adminOnly: true },
   { href: "/statistiques", label: "Statistiques", icon: BarChart3, adminOnly: true },
   { href: "/utilisateurs", label: "Utilisateurs", icon: Settings, adminOnly: true },
 ];

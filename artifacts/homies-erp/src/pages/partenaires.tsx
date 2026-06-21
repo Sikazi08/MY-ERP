@@ -24,8 +24,10 @@ export default function Partenaires() {
 
   const { data: partners = [], isLoading: loadingPartners } = useListPartners({ query: { queryKey: getListPartnersQueryKey() } });
   const { data: movements = [], isLoading: loadingMovements } = useListPartnerMovements({ query: { queryKey: getListPartnerMovementsQueryKey() } });
-  const { data: enStockProducts = [] } = useListProducts({ status: "en_stock" }, { query: { queryKey: getListProductsQueryKey({ status: "en_stock" }) } });
-  const { data: atPartnerProducts = [] } = useListProducts({ status: "chez_partenaire" }, { query: { queryKey: getListProductsQueryKey({ status: "chez_partenaire" }) } });
+  const { data: enStockPage } = useListProducts({ status: "en_stock", limit: 500 }, { query: { queryKey: getListProductsQueryKey({ status: "en_stock", limit: 500 }) } });
+  const enStockProducts = enStockPage?.data ?? [];
+  const { data: atPartnerPage } = useListProducts({ status: "chez_partenaire", limit: 500 }, { query: { queryKey: getListProductsQueryKey({ status: "chez_partenaire", limit: 500 }) } });
+  const atPartnerProducts = atPartnerPage?.data ?? [];
 
   const createPartner = useCreatePartner();
   const deletePartner = useDeletePartner();

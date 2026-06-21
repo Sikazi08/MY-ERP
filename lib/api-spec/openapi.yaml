@@ -18,6 +18,8 @@ tags:
   - name: movements
   - name: stats
   - name: exports
+  - name: sellers
+  - name: search
 
 paths:
   /healthz:
@@ -165,19 +167,29 @@ paths:
           in: query
           schema:
             type: string
-        - name: brand
+        - name: dateFrom
           in: query
           schema:
             type: string
+        - name: dateTo
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
       responses:
         "200":
-          description: List of products
+          description: Paginated list of products
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Product"
+                $ref: "#/components/schemas/ProductPage"
     post:
       operationId: createProduct
       tags: [products]
@@ -786,6 +798,147 @@ paths:
                 type: string
                 format: binary
 
+  # SELLERS
+  /sellers:
+    get:
+      operationId: listSellers
+      tags: [sellers]
+      summary: List sellers
+      parameters:
+        - name: activeOnly
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of sellers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Seller"
+    post:
+      operationId: createSeller
+      tags: [sellers]
+      summary: Create seller (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SellerInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Seller"
+
+  /sellers/{id}:
+    patch:
+      operationId: updateSeller
+      tags: [sellers]
+      summary: Update seller (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SellerUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Seller"
+    delete:
+      operationId: deleteSeller
+      tags: [sellers]
+      summary: Delete seller (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /sellers/{id}/sales:
+    get:
+      operationId: getSellerSales
+      tags: [sellers]
+      summary: Get sales for a seller (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Sales for this seller
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Sale"
+
+  # SEARCH
+  /search:
+    get:
+      operationId: globalSearch
+      tags: [search]
+      summary: Global search across all entities
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResult"
+
+  # CLIENT IMPORT
+  /clients/import:
+    post:
+      operationId: importClients
+      tags: [clients]
+      summary: Import clients from Excel/CSV (admin only)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Import result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportResult"
+
 components:
   schemas:
     HealthStatus:
@@ -860,7 +1013,7 @@ components:
     # PRODUCT
     Product:
       type: object
-      required: [id, productId, product, brand, status, entryDate, createdAt]
+      required: [id, productId, product, status, entryDate, createdAt]
       properties:
         id:
           type: integer
@@ -872,7 +1025,7 @@ components:
         product:
           type: string
         brand:
-          type: string
+          type: ["string", "null"]
         capacity:
           type: ["string", "null"]
         color:
@@ -900,9 +1053,24 @@ components:
           type: string
           format: date-time
 
+    ProductPage:
+      type: object
+      required: [data, total, page, limit]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Product"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
     ProductInput:
       type: object
-      required: [product, brand, status, entryDate]
+      required: [product, entryDate]
       properties:
         imei:
           type: string
@@ -981,6 +1149,10 @@ components:
           type: integer
         seller:
           $ref: "#/components/schemas/User"
+        vendorId:
+          type: ["integer", "null"]
+        vendorName:
+          type: ["string", "null"]
         saleDate:
           type: string
           format: date
@@ -1014,6 +1186,10 @@ components:
         clientName:
           type: string
         clientPhone:
+          type: string
+        vendorId:
+          type: integer
+        vendorName:
           type: string
         trocImei:
           type: string
@@ -1352,3 +1528,93 @@ components:
           type: number
         period:
           type: string
+
+    # SELLER
+    Seller:
+      type: object
+      required: [id, name, isActive, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        phone:
+          type: ["string", "null"]
+        address:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    SellerInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+        notes:
+          type: string
+
+    SellerUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+        notes:
+          type: string
+        isActive:
+          type: boolean
+
+    # IMPORT RESULT
+    ImportResult:
+      type: object
+      required: [imported, duplicates, errors]
+      properties:
+        imported:
+          type: integer
+        duplicates:
+          type: integer
+        errors:
+          type: integer
+        duplicateNames:
+          type: array
+          items:
+            type: string
+        errorMessages:
+          type: array
+          items:
+            type: string
+
+    # SEARCH RESULT
+    SearchResult:
+      type: object
+      required: [products, sales, clients, partners]
+      properties:
+        products:
+          type: array
+          items:
+            $ref: "#/components/schemas/Product"
+        sales:
+          type: array
+          items:
+            $ref: "#/components/schemas/Sale"
+        clients:
+          type: array
+          items:
+            $ref: "#/components/schemas/Client"
+        partners:
+          type: array
+          items:
+            $ref: "#/components/schemas/Partner"

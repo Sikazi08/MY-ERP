@@ -1,22 +1,30 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: THE HOMIES ERP API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
+  - name: auth
+  - name: users
+  - name: products
+  - name: sales
+  - name: partners
+  - name: expenses
+  - name: clients
+  - name: movements
+  - name: stats
+  - name: exports
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +32,760 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # AUTH
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout
+      responses:
+        "200":
+          description: Logged out
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
+
+  # USERS
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List users (admin only)
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+    post:
+      operationId: createUser
+      tags: [users]
+      summary: Create user (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{id}:
+    patch:
+      operationId: updateUser
+      tags: [users]
+      summary: Update user (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+    delete:
+      operationId: deleteUser
+      tags: [users]
+      summary: Delete user (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # PRODUCTS
+  /products:
+    get:
+      operationId: listProducts
+      tags: [products]
+      summary: List products with filters
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: brand
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+    post:
+      operationId: createProduct
+      tags: [products]
+      summary: Create product
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+
+  /products/{id}:
+    get:
+      operationId: getProduct
+      tags: [products]
+      summary: Get product by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+    patch:
+      operationId: updateProduct
+      tags: [products]
+      summary: Update product
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+    delete:
+      operationId: deleteProduct
+      tags: [products]
+      summary: Delete product (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # SALES
+  /sales:
+    get:
+      operationId: listSales
+      tags: [sales]
+      summary: List sales
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: dateFrom
+          in: query
+          schema:
+            type: string
+        - name: dateTo
+          in: query
+          schema:
+            type: string
+        - name: paymentMode
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of sales
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Sale"
+    post:
+      operationId: createSale
+      tags: [sales]
+      summary: Create a sale (normal or troc)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaleInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sale"
+
+  /sales/{id}/cancel:
+    post:
+      operationId: cancelSale
+      tags: [sales]
+      summary: Cancel a sale (creates reversal movement)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancellationInput"
+      responses:
+        "200":
+          description: Cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sale"
+
+  # PARTNERS
+  /partners:
+    get:
+      operationId: listPartners
+      tags: [partners]
+      summary: List partners
+      responses:
+        "200":
+          description: List of partners
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Partner"
+    post:
+      operationId: createPartner
+      tags: [partners]
+      summary: Create partner
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartnerInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Partner"
+
+  /partners/{id}:
+    patch:
+      operationId: updatePartner
+      tags: [partners]
+      summary: Update partner
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartnerUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Partner"
+    delete:
+      operationId: deletePartner
+      tags: [partners]
+      summary: Delete partner
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /partners/send-product:
+    post:
+      operationId: sendProductToPartner
+      tags: [partners]
+      summary: Send product to partner
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartnerSendInput"
+      responses:
+        "201":
+          description: Sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartnerMovement"
+
+  /partners/return-product:
+    post:
+      operationId: returnProductFromPartner
+      tags: [partners]
+      summary: Return product from partner
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartnerReturnInput"
+      responses:
+        "200":
+          description: Returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartnerMovement"
+
+  /partners/movements:
+    get:
+      operationId: listPartnerMovements
+      tags: [partners]
+      summary: List partner movements
+      responses:
+        "200":
+          description: Partner movements
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PartnerMovement"
+
+  # EXPENSES
+  /expenses:
+    get:
+      operationId: listExpenses
+      tags: [expenses]
+      summary: List expenses
+      parameters:
+        - name: dateFrom
+          in: query
+          schema:
+            type: string
+        - name: dateTo
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of expenses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Expense"
+    post:
+      operationId: createExpense
+      tags: [expenses]
+      summary: Create expense
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExpenseInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Expense"
+
+  /expenses/{id}:
+    patch:
+      operationId: updateExpense
+      tags: [expenses]
+      summary: Update expense
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExpenseUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Expense"
+    delete:
+      operationId: deleteExpense
+      tags: [expenses]
+      summary: Delete expense (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # CLIENTS
+  /clients:
+    get:
+      operationId: listClients
+      tags: [clients]
+      summary: List clients (admin only)
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of clients
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Client"
+    post:
+      operationId: createClient
+      tags: [clients]
+      summary: Create client (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClientInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Client"
+
+  /clients/{id}:
+    get:
+      operationId: getClient
+      tags: [clients]
+      summary: Get client with purchase history
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Client
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClientDetail"
+    patch:
+      operationId: updateClient
+      tags: [clients]
+      summary: Update client (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClientUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Client"
+
+  # MOVEMENTS (Journal)
+  /movements:
+    get:
+      operationId: listMovements
+      tags: [movements]
+      summary: List all movements
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: dateFrom
+          in: query
+          schema:
+            type: string
+        - name: dateTo
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of movements
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Movement"
+
+  # STATISTICS (admin only)
+  /stats/dashboard:
+    get:
+      operationId: getDashboardStats
+      tags: [stats]
+      summary: Get dashboard statistics
+      responses:
+        "200":
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+  /stats/financial:
+    get:
+      operationId: getFinancialStats
+      tags: [stats]
+      summary: Get financial statistics (admin only)
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [day, week, month]
+      responses:
+        "200":
+          description: Financial stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinancialStats"
+
+  /stats/top-products:
+    get:
+      operationId: getTopProducts
+      tags: [stats]
+      summary: Get top selling products (admin only)
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Top products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TopProduct"
+
+  /stats/payment-breakdown:
+    get:
+      operationId: getPaymentBreakdown
+      tags: [stats]
+      summary: Get payment mode breakdown (admin only)
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [day, week, month]
+      responses:
+        "200":
+          description: Payment breakdown
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentBreakdown"
+
+  # EXPORTS
+  /exports/stock:
+    get:
+      operationId: exportStock
+      tags: [exports]
+      summary: Export stock as Excel
+      responses:
+        "200":
+          description: Excel file
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+
+  /exports/sales:
+    get:
+      operationId: exportSales
+      tags: [exports]
+      summary: Export sales as Excel
+      responses:
+        "200":
+          description: Excel file
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+
+  /exports/expenses:
+    get:
+      operationId: exportExpenses
+      tags: [exports]
+      summary: Export expenses as Excel
+      responses:
+        "200":
+          description: Excel file
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+
+  /exports/clients:
+    get:
+      operationId: exportClients
+      tags: [exports]
+      summary: Export clients as Excel (admin only)
+      responses:
+        "200":
+          description: Excel file
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+
+  /exports/movements:
+    get:
+      operationId: exportMovements
+      tags: [exports]
+      summary: Export movements as Excel
+      responses:
+        "200":
+          description: Excel file
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +793,562 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    # AUTH
+    LoginInput:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+
+    AuthResponse:
+      type: object
+      required: [user]
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+
+    # USER
+    User:
+      type: object
+      required: [id, username, fullName, role, createdAt]
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        fullName:
+          type: string
+        role:
+          type: string
+          enum: [admin, secretary]
+        createdAt:
+          type: string
+          format: date-time
+
+    UserInput:
+      type: object
+      required: [username, password, fullName, role]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+        fullName:
+          type: string
+        role:
+          type: string
+          enum: [admin, secretary]
+
+    UserUpdate:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+        fullName:
+          type: string
+        role:
+          type: string
+          enum: [admin, secretary]
+
+    # PRODUCT
+    Product:
+      type: object
+      required: [id, productId, product, brand, status, entryDate, createdAt]
+      properties:
+        id:
+          type: integer
+        productId:
+          type: string
+          description: "Auto-generated like TH001"
+        imei:
+          type: ["string", "null"]
+        product:
+          type: string
+        brand:
+          type: string
+        capacity:
+          type: ["string", "null"]
+        color:
+          type: ["string", "null"]
+        supplier:
+          type: ["string", "null"]
+        purchasePrice:
+          type: ["number", "null"]
+          description: "Hidden from secretary"
+        sellingPrice:
+          type: ["number", "null"]
+        profit:
+          type: ["number", "null"]
+          description: "Calculated: sellingPrice - purchasePrice"
+        status:
+          type: string
+          enum: [en_stock, chez_partenaire, vendu]
+        entryDate:
+          type: string
+          format: date
+        saleDate:
+          type: ["string", "null"]
+          format: date
+        createdAt:
+          type: string
+          format: date-time
+
+    ProductInput:
+      type: object
+      required: [product, brand, status, entryDate]
+      properties:
+        imei:
+          type: string
+        product:
+          type: string
+        brand:
+          type: string
+        capacity:
+          type: string
+        color:
+          type: string
+        supplier:
+          type: string
+        purchasePrice:
+          type: number
+        sellingPrice:
+          type: number
+        status:
+          type: string
+          enum: [en_stock, chez_partenaire, vendu]
+        entryDate:
+          type: string
+          format: date
+
+    ProductUpdate:
+      type: object
+      properties:
+        imei:
+          type: string
+        product:
+          type: string
+        brand:
+          type: string
+        capacity:
+          type: string
+        color:
+          type: string
+        supplier:
+          type: string
+        purchasePrice:
+          type: number
+        sellingPrice:
+          type: number
+        status:
+          type: string
+          enum: [en_stock, chez_partenaire, vendu]
+        entryDate:
+          type: string
+
+    # SALE
+    Sale:
+      type: object
+      required: [id, productId, saleType, paymentMode, amount, saleDate, saleTime, sellerId, createdAt]
+      properties:
+        id:
+          type: integer
+        productId:
+          type: integer
+        product:
+          $ref: "#/components/schemas/Product"
+        saleType:
+          type: string
+          enum: [normal, troc]
+        paymentMode:
+          type: string
+          enum: [OM, MOMO, Cash]
+        amount:
+          type: number
+        clientId:
+          type: ["integer", "null"]
+        clientName:
+          type: ["string", "null"]
+        clientPhone:
+          type: ["string", "null"]
+        sellerId:
+          type: integer
+        seller:
+          $ref: "#/components/schemas/User"
+        saleDate:
+          type: string
+          format: date
+        saleTime:
+          type: string
+        cancelled:
+          type: boolean
+        cancellationReason:
+          type: ["string", "null"]
+        trocProductId:
+          type: ["integer", "null"]
+          description: "ID of product received in troc"
+        createdAt:
+          type: string
+          format: date-time
+
+    SaleInput:
+      type: object
+      required: [productId, saleType, paymentMode, amount]
+      properties:
+        productId:
+          type: integer
+        saleType:
+          type: string
+          enum: [normal, troc]
+        paymentMode:
+          type: string
+          enum: [OM, MOMO, Cash]
+        amount:
+          type: number
+        clientName:
+          type: string
+        clientPhone:
+          type: string
+        trocImei:
+          type: string
+        trocProduct:
+          type: string
+        trocBrand:
+          type: string
+        trocCapacity:
+          type: string
+        trocColor:
+          type: string
+
+    CancellationInput:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+
+    # PARTNER
+    Partner:
+      type: object
+      required: [id, name, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        phone:
+          type: ["string", "null"]
+        address:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    PartnerInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+
+    PartnerUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+
+    PartnerMovement:
+      type: object
+      required: [id, partnerId, productId, movementType, movementDate, createdAt]
+      properties:
+        id:
+          type: integer
+        partnerId:
+          type: integer
+        partner:
+          $ref: "#/components/schemas/Partner"
+        productId:
+          type: integer
+        product:
+          $ref: "#/components/schemas/Product"
+        movementType:
+          type: string
+          enum: [sortie, retour]
+        movementDate:
+          type: string
+          format: date
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    PartnerSendInput:
+      type: object
+      required: [partnerId, productId, movementDate]
+      properties:
+        partnerId:
+          type: integer
+        productId:
+          type: integer
+        movementDate:
+          type: string
+          format: date
+        notes:
+          type: string
+
+    PartnerReturnInput:
+      type: object
+      required: [productId, movementDate]
+      properties:
+        productId:
+          type: integer
+        movementDate:
+          type: string
+          format: date
+        notes:
+          type: string
+
+    # EXPENSE
+    Expense:
+      type: object
+      required: [id, label, amount, expenseDate, expenseTime, userId, createdAt]
+      properties:
+        id:
+          type: integer
+        label:
+          type: string
+        amount:
+          type: number
+        expenseDate:
+          type: string
+          format: date
+        expenseTime:
+          type: string
+        userId:
+          type: integer
+        user:
+          $ref: "#/components/schemas/User"
+        createdAt:
+          type: string
+          format: date-time
+
+    ExpenseInput:
+      type: object
+      required: [label, amount, expenseDate]
+      properties:
+        label:
+          type: string
+        amount:
+          type: number
+        expenseDate:
+          type: string
+          format: date
+
+    ExpenseUpdate:
+      type: object
+      properties:
+        label:
+          type: string
+        amount:
+          type: number
+        expenseDate:
+          type: string
+
+    # CLIENT
+    Client:
+      type: object
+      required: [id, fullName, createdAt]
+      properties:
+        id:
+          type: integer
+        fullName:
+          type: string
+        phone:
+          type: ["string", "null"]
+        purchaseCount:
+          type: integer
+        totalPurchases:
+          type: number
+        lastPurchaseDate:
+          type: ["string", "null"]
+          format: date
+        createdAt:
+          type: string
+          format: date-time
+
+    ClientDetail:
+      type: object
+      required: [id, fullName, createdAt, purchases]
+      properties:
+        id:
+          type: integer
+        fullName:
+          type: string
+        phone:
+          type: ["string", "null"]
+        purchaseCount:
+          type: integer
+        totalPurchases:
+          type: number
+        lastPurchaseDate:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        purchases:
+          type: array
+          items:
+            $ref: "#/components/schemas/Sale"
+
+    ClientInput:
+      type: object
+      required: [fullName]
+      properties:
+        fullName:
+          type: string
+        phone:
+          type: string
+
+    ClientUpdate:
+      type: object
+      properties:
+        fullName:
+          type: string
+        phone:
+          type: string
+
+    # MOVEMENT (Journal)
+    Movement:
+      type: object
+      required: [id, movementType, movementDate, movementTime, userId, description, createdAt]
+      properties:
+        id:
+          type: integer
+        movementType:
+          type: string
+          enum: [achat, vente, entree_troc, depense, sortie_partenaire, retour_partenaire, modification_produit, suppression_produit, annulation]
+        movementDate:
+          type: string
+          format: date
+        movementTime:
+          type: string
+        userId:
+          type: integer
+        user:
+          $ref: "#/components/schemas/User"
+        productId:
+          type: ["integer", "null"]
+        productRef:
+          type: ["string", "null"]
+        imei:
+          type: ["string", "null"]
+        description:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    # STATS
+    DashboardStats:
+      type: object
+      required: [productsInStock, productsAtPartner, productsSold, salesToday, expensesToday, revenuToday, cashBalanceToday, lowStockProducts]
+      properties:
+        productsInStock:
+          type: integer
+        productsAtPartner:
+          type: integer
+        productsSold:
+          type: integer
+        salesToday:
+          type: integer
+        expensesToday:
+          type: number
+        revenuToday:
+          type: number
+        cashBalanceToday:
+          type: number
+        lowStockProducts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Product"
+        totalClients:
+          type: ["integer", "null"]
+        newClientsToday:
+          type: ["integer", "null"]
+        profitToday:
+          type: ["number", "null"]
+        profitMonth:
+          type: ["number", "null"]
+
+    FinancialStats:
+      type: object
+      required: [revenue, expenses, profit, period]
+      properties:
+        period:
+          type: string
+        revenue:
+          type: number
+        expenses:
+          type: number
+        profit:
+          type: number
+        revenueByDay:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayRevenue"
+
+    DayRevenue:
+      type: object
+      required: [date, revenue, expenses, profit]
+      properties:
+        date:
+          type: string
+        revenue:
+          type: number
+        expenses:
+          type: number
+        profit:
+          type: number
+
+    TopProduct:
+      type: object
+      required: [product, brand, count, revenue]
+      properties:
+        product:
+          type: string
+        brand:
+          type: string
+        count:
+          type: integer
+        revenue:
+          type: number
+
+    PaymentBreakdown:
+      type: object
+      required: [om, momo, cash, total]
+      properties:
+        om:
+          type: number
+        momo:
+          type: number
+        cash:
+          type: number
+        total:
+          type: number
+        period:
+          type: string

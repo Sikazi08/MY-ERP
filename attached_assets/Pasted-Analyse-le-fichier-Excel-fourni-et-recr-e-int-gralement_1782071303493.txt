@@ -1,0 +1,462 @@
+Analyse le fichier Excel fourni et recrée intégralement son fonctionnement sous forme d'une application ERP professionnelle moderne nommée THE HOMIES ERP.
+
+L'objectif est de remplacer complètement Excel par une application professionnelle sécurisée, rapide, moderne, responsive et adaptée à une boutique de téléphones et accessoires.
+
+IMPORTANT
+
+* Reproduire fidèlement toutes les fonctionnalités du fichier Excel.
+* Utiliser PostgreSQL ou Supabase comme base de données.
+* Architecture prête pour la production.
+* Interface moderne noir, gris foncé et orange.
+* Application entièrement responsive.
+* Compatible PC, tablette, Android et iPhone.
+* Toutes les données doivent être synchronisées en temps réel.
+
+AUTHENTIFICATION
+
+Créer uniquement deux profils :
+
+1. Administrateur
+2. Secrétaire
+
+ADMINISTRATEUR
+
+Possède tous les droits.
+
+Peut :
+
+* Gérer les utilisateurs
+* Gérer les produits
+* Gérer les partenaires
+* Gérer les fournisseurs
+* Gérer les dépenses
+* Gérer les clients
+* Voir les prix d'achat
+* Voir les bénéfices
+* Voir les marges
+* Voir les statistiques
+* Voir les rapports financiers
+* Exporter toutes les données Excel
+* Effectuer les sauvegardes
+* Restaurer les sauvegardes
+
+SECRÉTAIRE
+
+Peut :
+
+* Ajouter un produit
+* Modifier un produit
+* Enregistrer une vente
+* Enregistrer un troc
+* Enregistrer une dépense
+* Gérer les partenaires
+* Consulter le stock
+* Consulter les mouvements
+
+Ne peut jamais :
+
+* Voir les prix d'achat
+* Voir les bénéfices
+* Voir les marges
+* Voir les statistiques financières
+* Voir les rapports financiers
+* Voir les clients
+* Exporter les clients
+* Gérer les utilisateurs
+* Supprimer un produit
+
+Le tableau de bord est la page principale.
+
+Afficher :
+
+* Produits en stock
+* Produits chez partenaires
+* Produits vendus
+* Ventes du jour
+* Dépenses du jour
+* Chiffre d'affaires du jour
+* Solde caisse du jour
+* Produits à faible stock
+
+ADMINISTRATEUR UNIQUEMENT
+
+Afficher également :
+
+* Nombre total de clients
+* Nouveaux clients
+* Bénéfices du jour
+* Bénéfices du mois
+* Statistiques avancées
+
+Chaque produit possède :
+
+* ID Produit
+* IMEI
+* Produit
+* Marque
+* Capacité
+* Couleur
+* Fournisseur
+* Prix d'achat
+* Prix de vente
+* Bénéfice
+* Date d'entrée
+* Date de vente
+* Statut
+
+Format des IDs :
+
+TH001
+TH002
+TH003
+TH004
+
+Génération automatique.
+
+STATUTS
+
+* En Stock
+* Chez Partenaire
+* Vendu
+
+FILTRES STOCK
+
+* Tous
+* En Stock
+* Chez Partenaire
+* Vendu
+
+DROITS
+
+Administrateur :
+
+* Ajouter
+* Modifier
+* Supprimer
+
+Secrétaire :
+
+* Ajouter
+* Modifier
+
+La secrétaire peut ajouter un produit sans prix d'achat.
+
+L'administrateur peut ensuite ouvrir la fiche du produit et renseigner le prix d'achat.
+
+CALCUL AUTOMATIQUE
+
+Bénéfice = Prix de vente - Prix d'achat
+
+Informations :
+
+* Date
+* Heure
+* Produit
+* IMEI
+* Client
+* Téléphone
+* Vendeur
+* Mode de paiement
+* Type de vente
+* Montant
+
+TYPES DE VENTE
+
+* Vente normale
+* Troc
+
+MODES DE PAIEMENT
+
+* OM (Orange Money)
+* MOMO (Mobile Money)
+* Cash
+
+Le mode de paiement doit être une liste déroulante obligatoire.
+
+Lors d'une vente :
+
+* Le produit passe automatiquement au statut Vendu
+* La date de vente est enregistrée
+* Le stock est mis à jour
+* Le mouvement est créé automatiquement
+* Le client est créé ou mis à jour automatiquement
+
+Afficher :
+
+"Votre vente a été enregistrée avec succès."
+
+RÈGLE IMPORTANTE
+
+Une vente validée ne peut jamais être modifiée directement.
+
+En cas d'erreur :
+
+* Créer une annulation
+* Conserver la traçabilité complète
+
+Lors d'un troc :
+
+Le téléphone vendu sort du stock.
+
+Le téléphone reçu est ajouté automatiquement au stock.
+
+Créer automatiquement :
+
+* Nouvel ID
+* IMEI reçu
+* Produit reçu
+* Marque reçue
+* Capacité reçue
+* Couleur reçue
+* Statut = En Stock
+
+Créer automatiquement :
+
+* Entrée stock
+* Mouvement
+* Historique
+
+Afficher :
+
+"Votre troc a été enregistré avec succès."
+
+SORTIE PARTENAIRE
+
+Informations :
+
+* Partenaire
+* Produit
+* IMEI
+* Date
+
+Statut :
+
+Chez Partenaire
+
+RETOUR PARTENAIRE
+
+Informations :
+
+* Produit
+* IMEI
+* Date retour
+
+Statut :
+
+En Stock
+
+Informations :
+
+* Date
+* Heure
+* Libellé de la dépense
+* Montant
+* Utilisateur
+
+Droits :
+
+Secrétaire :
+
+* Ajouter
+* Modifier
+
+Administrateur :
+
+* Ajouter
+* Modifier
+* Supprimer
+
+Chaque dépense doit automatiquement créer un mouvement.
+
+Type :
+
+Dépense
+
+Ne pas créer de module caisse séparé.
+
+Afficher directement dans le Dashboard.
+
+Calcul automatique :
+
+Total des dépenses du jour
+
+Mettre à jour automatiquement après chaque vente ou dépense.
+
+MODULE RÉSERVÉ UNIQUEMENT À L'ADMINISTRATEUR
+
+Informations :
+
+* Nom complet
+* Téléphone
+* Date de création
+* Nombre d'achats
+* Total des achats
+* Dernière date d'achat
+
+Fonctionnement :
+
+Lors d'une vente :
+
+* Si le client n'existe pas → création automatique
+* Si le client existe → mise à jour automatique
+
+Fonctions :
+
+* Ajouter
+* Modifier
+* Rechercher
+* Consulter l'historique complet
+
+Recherche :
+
+* Nom
+* Téléphone
+
+EXPORT CLIENTS
+
+UNIQUEMENT ADMINISTRATEUR
+
+Exporter tous les clients en Excel.
+
+La secrétaire ne doit jamais voir ce module.
+
+Journal complet.
+
+Types :
+
+* Achat
+* Vente
+* Entrée Troc
+* Dépense
+* Sortie Partenaire
+* Retour Partenaire
+* Modification Produit
+* Suppression Produit
+
+Colonnes :
+
+* Date
+* Heure
+* Type
+* Utilisateur
+* Produit
+* IMEI
+* Description
+
+Les mouvements Achat, Vente et Entrée Troc sont automatiques et non modifiables.
+
+VENTES
+
+Recherche par :
+
+* Nom du client
+* Numéro de téléphone
+* IMEI
+* Produit
+* Vendeur
+* ID Produit
+
+STOCK
+
+Recherche par :
+
+* IMEI
+* Produit
+* Statut
+
+CLIENTS
+
+Recherche par :
+
+* Nom
+* Téléphone
+
+Permettre l'export Excel (.xlsx) des modules :
+
+* Stock
+* Ventes
+* Dépenses
+* Mouvements
+* Produits chez partenaires
+
+Inclure dans l'export des ventes :
+
+* Date
+* Heure
+* Client
+* Téléphone
+* Produit
+* IMEI
+* Vendeur
+* Mode de paiement
+* Montant FCFA
+
+EXPORT CLIENTS
+
+Uniquement Administrateur.
+
+STATISTIQUES ET RAPPORTS
+
+Administrateur uniquement.
+
+Afficher :
+
+* Chiffre d'affaires journalier
+* Chiffre d'affaires mensuel
+* Dépenses journalières
+* Dépenses mensuelles
+* Bénéfices
+* Produits les plus vendus
+* Répartition des ventes par mode de paiement
+
+Afficher :
+
+* Total OM
+* Total MOMO
+* Total Cash
+
+Pour :
+
+* Jour
+* Semaine
+* Mois
+
+SAUVEGARDES
+
+* Sauvegarde automatique quotidienne
+* Sauvegarde manuelle
+* Restauration de sauvegarde
+* Historique des sauvegardes
+
+NOTIFICATIONS
+
+Afficher automatiquement :
+
+* Vente enregistrée
+* Troc enregistré
+* Dépense enregistrée
+* Produit ajouté
+* Produit envoyé chez partenaire
+* Produit retourné du partenaire
+
+SÉCURITÉ
+
+* Connexion obligatoire
+* Journal d'audit
+* Historique des actions
+* Traçabilité complète
+* Protection contre les suppressions accidentelles
+
+L'application doit être parfaitement responsive :
+
+* PC
+* Ordinateur portable
+* Tablette
+* Smartphone Android
+* iPhone
+
+Toutes les fonctionnalités doivent être utilisables sur mobile sans perte de fonctionnalités.
+
+Produire une application ERP professionnelle prête pour une utilisation réelle en boutique, avec gestion complète des IMEI, du stock, des ventes, des trocs, des partenaires, des dépenses, du solde caisse, des clients, des utilisateurs, des bénéfices et des exports Excel.
+
+Créer une interface moderne, rapide, sécurisée, élégante et simple à utiliser, supérieure à la version Excel actuelle tout en conservant exactement la même logique métier.

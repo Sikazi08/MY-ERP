@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "THE HOMIES ERP"
+version = "1.0.0"
+id = "artifacts/homies-erp"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25438
+
+[services.development]
+run = "pnpm --filter @workspace/homies-erp run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/homies-erp", "run", "build" ]
+publicDir = "artifacts/homies-erp/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25438"
+BASE_PATH = "/"

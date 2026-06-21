@@ -1,0 +1,73 @@
+Améliorations et fonctionnalités à intégrer
+
+Gestion des produits
+
+* L’administrateur doit pouvoir modifier intégralement tous les produits enregistrés par la secrétaire.
+* L’administrateur doit pouvoir ajouter ou modifier le prix de vente d’un produit à tout moment.
+* Lors de l’ajout d’un produit, le champ Quantité doit avoir la valeur par défaut 1.
+* Les champs Marque, Couleur et Capacité doivent être entièrement optionnels. Un produit doit pouvoir être enregistré même si ces informations ne sont pas renseignées.
+* Le champ Capacité doit proposer une liste déroulante contenant les capacités courantes des téléphones (par exemple : 16 Go, 32 Go, 64 Go, 128 Go, 256 Go, 512 Go, 1 To, etc.).
+* Le champ Couleur doit proposer une liste déroulante contenant les couleurs les plus courantes des appareils électroniques (par exemple : Noir, Blanc, Gris, Argent, Bleu, Rouge, Vert, Jaune, Rose, Violet, Or, Bronze, etc.).
+* Le champ Couleur doit également permettre la saisie libre afin que l’utilisateur puisse renseigner une couleur personnalisée si elle n’est pas présente dans la liste.
+* Il ne doit pas être possible d’ajouter deux fois le même produit dans le système. Le système doit détecter les doublons et empêcher leur enregistrement.
+
+Gestion des ventes
+
+* Lors de l’enregistrement d’une vente, il doit être possible de vendre un produit se trouvant chez un partenaire.
+* Dans ce cas, le champ Vendeur doit être automatiquement renseigné avec le nom du partenaire concerné.
+* Lors de la création d’une vente, le champ Vendeur doit proposer automatiquement la liste des vendeurs enregistrés dans le système (liste déroulante avec recherche).
+
+Gestion des clients
+
+* Ajouter dans l’espace Administrateur une fonctionnalité permettant d’importer des clients à partir d’un fichier Excel (.xlsx ou .csv).
+* Le système doit vérifier les doublons avant importation et afficher un rapport des données importées.
+
+Gestion des vendeurs
+
+* Ajouter un module complet Vendeurs dans l’administration.
+* Ce module doit permettre :
+    * l’ajout d’un vendeur ;
+    * la modification d’un vendeur ;
+    * la suppression d’un vendeur ;
+    * l’activation ou la désactivation d’un vendeur ;
+    * la consultation des ventes réalisées par chaque vendeur.
+
+Module Mouvements
+
+* Le module Mouvements doit lister automatiquement toutes les opérations effectuées dans le système :
+    * ventes ;
+    * dépenses ;
+    * enregistrements de téléphones ;
+    * sorties de téléphones ;
+    * retours de téléphones ;
+    * transferts vers partenaires ;
+    * retours depuis partenaires.
+* Chaque mouvement doit comporter :
+    * la date ;
+    * l’heure ;
+    * l’utilisateur ayant effectué l’opération ;
+    * le type d’opération ;
+    * une description détaillée.
+
+Recherche générale
+
+* Ajouter une barre de recherche globale accessible depuis le tableau de bord.
+* Cette recherche doit permettre de retrouver rapidement :
+    * un téléphone via son IMEI ;
+    * un produit via sa désignation ;
+    * une vente ;
+    * un client ;
+    * un partenaire.
+
+Filtres par date
+
+* Dans les modules Mouvements, Stocks, Ventes et Dépenses, ajouter un filtre par date avec calendrier.
+* L’utilisateur doit pouvoir :
+    * sélectionner une date précise ;
+    * sélectionner une période (date de début et date de fin) ;
+    * afficher instantanément les opérations correspondant à la période choisie.
+
+Expérience utilisateur
+
+* Toutes les listes doivent être paginées et disposer d’un champ de recherche rapide.
+* Toutes les fonctionnalités doivent être entièrement responsives et optimisées pour ordinateur, tablette et smartphone.

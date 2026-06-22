@@ -185,7 +185,7 @@ function ProductFormFields({
 }
 
 export default function Stock() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -391,46 +391,49 @@ export default function Stock() {
                 {isAdmin && <TableHead>Bénéfice</TableHead>}
                 <TableHead>Statut</TableHead>
                 <TableHead>Entrée</TableHead>
-                {isAdmin && <TableHead>Actions</TableHead>}
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={isAdmin ? 11 : 8} className="h-24 text-center">
+                <TableRow><TableCell colSpan={isAdmin ? 11 : 9} className="h-24 text-center">
                   <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />
                 </TableCell></TableRow>
               ) : products.length === 0 ? (
-                <TableRow><TableCell colSpan={isAdmin ? 11 : 8} className="h-24 text-center text-muted-foreground">
+                <TableRow><TableCell colSpan={isAdmin ? 11 : 9} className="h-24 text-center text-muted-foreground">
                   Aucun produit trouvé.
                 </TableCell></TableRow>
               ) : (
-                products.map((product) => (
-                  <TableRow key={product.id} className="border-border hover:bg-muted/50 cursor-pointer transition-colors"
-                    onClick={() => setSelectedProduct(product)}>
-                    <TableCell className="font-mono text-xs text-muted-foreground">{product.productId}</TableCell>
-                    <TableCell className="font-medium">{product.product}</TableCell>
-                    <TableCell className="text-muted-foreground text-sm font-mono">{product.imei || "-"}</TableCell>
-                    <TableCell className="text-muted-foreground">{product.brand || "-"}</TableCell>
-                    <TableCell className="text-muted-foreground text-sm">{product.capacity || "-"} / {product.color || "-"}</TableCell>
-                    {isAdmin && <TableCell>{formatFCFA(product.purchasePrice)}</TableCell>}
-                    <TableCell className="font-medium">{formatFCFA(product.sellingPrice)}</TableCell>
-                    {isAdmin && (
-                      <TableCell className={product.profit && product.profit > 0 ? "text-green-500 font-medium" : ""}>
-                        {formatFCFA(product.profit)}
-                      </TableCell>
-                    )}
-                    <TableCell>{getStatusBadge(product.status)}</TableCell>
-                    <TableCell className="text-muted-foreground text-sm">{formatDateFr(product.entryDate)}</TableCell>
-                    {isAdmin && (
+                products.map((product) => {
+                  const canEdit = isAdmin || (product as unknown as { createdByUserId?: number }).createdByUserId === user?.id;
+                  return (
+                    <TableRow key={product.id} className="border-border hover:bg-muted/50 cursor-pointer transition-colors"
+                      onClick={() => setSelectedProduct(product)}>
+                      <TableCell className="font-mono text-xs text-muted-foreground">{product.productId}</TableCell>
+                      <TableCell className="font-medium">{product.product}</TableCell>
+                      <TableCell className="text-muted-foreground text-sm font-mono">{product.imei || "-"}</TableCell>
+                      <TableCell className="text-muted-foreground">{product.brand || "-"}</TableCell>
+                      <TableCell className="text-muted-foreground text-sm">{product.capacity || "-"} / {product.color || "-"}</TableCell>
+                      {isAdmin && <TableCell>{formatFCFA(product.purchasePrice)}</TableCell>}
+                      <TableCell className="font-medium">{formatFCFA(product.sellingPrice)}</TableCell>
+                      {isAdmin && (
+                        <TableCell className={product.profit && product.profit > 0 ? "text-green-500 font-medium" : ""}>
+                          {formatFCFA(product.profit)}
+                        </TableCell>
+                      )}
+                      <TableCell>{getStatusBadge(product.status)}</TableCell>
+                      <TableCell className="text-muted-foreground text-sm">{formatDateFr(product.entryDate)}</TableCell>
                       <TableCell onClick={e => e.stopPropagation()}>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                          onClick={() => openEdit(product)}>
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
+                        {canEdit && (
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                            onClick={() => openEdit(product)}>
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                        )}
                       </TableCell>
-                    )}
-                  </TableRow>
-                ))
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
@@ -512,24 +515,30 @@ export default function Stock() {
                   </div>
                 )}
               </div>
-              {isAdmin && (
+              {(isAdmin || (selectedProduct as unknown as { createdByUserId?: number })?.createdByUserId === user?.id) && (
                 <div className="pt-4 flex gap-3 border-t border-border">
                   <Button variant="outline" className="flex-1" onClick={() => { openEdit(selectedProduct); }}>
                     <Edit2 className="h-4 w-4 mr-2" /> Modifier
                   </Button>
-                  <Button variant="destructive" className="flex-1" onClick={() => {
-                    if (confirm("Êtes-vous sûr de vouloir supprimer ce produit ?")) {
-                      deleteMutation.mutate({ id: selectedProduct.id }, {
-                        onSuccess: () => {
-                          toast.success("Produit supprimé");
-                          setSelectedProduct(null);
-                          queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
-                        },
-                      });
-                    }
-                  }}>
-                    <Trash2 className="h-4 w-4 mr-2" /> Supprimer
-                  </Button>
+                  {isAdmin && (
+                    <Button variant="destructive" className="flex-1" onClick={() => {
+                      if (confirm("Êtes-vous sûr de vouloir supprimer ce produit ?")) {
+                        deleteMutation.mutate({ id: selectedProduct.id }, {
+                          onSuccess: () => {
+                            toast.success("Produit supprimé");
+                            setSelectedProduct(null);
+                            queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
+                          },
+                          onError: (e: unknown) => {
+                            const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
+                            toast.error(msg || "Erreur lors de la suppression");
+                          },
+                        });
+                      }
+                    }}>
+                      <Trash2 className="h-4 w-4 mr-2" /> Supprimer
+                    </Button>
+                  )}
                 </div>
               )}
             </div>

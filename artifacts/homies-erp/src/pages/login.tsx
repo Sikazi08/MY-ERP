@@ -6,9 +6,10 @@ import { getGetMeQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
+const logoImg = `${import.meta.env.BASE_URL}logo.png`;
 
 export default function Login() {
   const [username, setUsername] = useState("");
@@ -48,16 +49,11 @@ export default function Login() {
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md border-border bg-card shadow-2xl">
-        <CardHeader className="space-y-3 pb-6 text-center">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-xl bg-primary">
-            <span className="text-3xl font-black text-white">H</span>
-          </div>
-          <div className="space-y-1">
-            <CardTitle className="text-2xl font-bold tracking-tight">THE HOMIES ERP</CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Connectez-vous pour accéder à votre espace
-            </CardDescription>
-          </div>
+        <CardHeader className="space-y-4 pb-6 flex flex-col items-center">
+          <img src={logoImg} alt="The Homies" className="h-20 w-auto object-contain" />
+          <p className="text-muted-foreground text-sm">
+            Connectez-vous pour accéder à votre espace
+          </p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">

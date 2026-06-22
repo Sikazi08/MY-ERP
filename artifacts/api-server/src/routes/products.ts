@@ -80,6 +80,7 @@ router.post("/", requireAuth, async (req, res): Promise<void> => {
     }
   }
 
+  const isAdmin = req.session!.role === "admin";
   const productId = await generateProductId();
   const [row] = await db.insert(productsTable).values({
     productId,
@@ -89,10 +90,11 @@ router.post("/", requireAuth, async (req, res): Promise<void> => {
     capacity: capacity || null,
     color: color || null,
     supplier: supplier || null,
-    purchasePrice: purchasePrice !== undefined && purchasePrice !== "" ? String(purchasePrice) : null,
+    purchasePrice: isAdmin && purchasePrice !== undefined && purchasePrice !== "" ? String(purchasePrice) : null,
     sellingPrice: sellingPrice !== undefined && sellingPrice !== "" ? String(sellingPrice) : null,
     status: status || "en_stock",
     entryDate,
+    createdByUserId: req.session!.userId!,
   }).returning();
 
   await db.insert(movementsTable).values({
@@ -106,7 +108,6 @@ router.post("/", requireAuth, async (req, res): Promise<void> => {
     description: `Ajout produit: ${product}${brand ? " " + brand : ""} (${productId})`,
   });
 
-  const isAdmin = req.session!.role === "admin";
   res.status(201).json(mapProduct(row, isAdmin));
 });
 
@@ -120,24 +121,30 @@ router.get("/:id", requireAuth, async (req, res): Promise<void> => {
 
 router.patch("/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id);
-  const { imei, product, brand, capacity, color, supplier, purchasePrice, sellingPrice, status, entryDate } = req.body;
   const isAdmin = req.session!.role === "admin";
+  const userId = req.session!.userId!;
 
-  if (!isAdmin && (purchasePrice !== undefined)) {
+  const [existing] = await db.select().from(productsTable).where(eq(productsTable.id, id)).limit(1);
+  if (!existing) { res.status(404).json({ error: "Produit non trouvé" }); return; }
+
+  if (!isAdmin && existing.createdByUserId !== userId) {
+    res.status(403).json({ error: "Vous ne pouvez modifier que les produits que vous avez ajoutés" });
+    return;
+  }
+
+  const { imei, product, brand, capacity, color, supplier, purchasePrice, sellingPrice, status, entryDate } = req.body;
+
+  if (!isAdmin && purchasePrice !== undefined) {
     res.status(403).json({ error: "Seul l'admin peut modifier le prix d'achat" });
     return;
   }
 
-  if (imei) {
-    const [existing] = await db.select({ id: productsTable.id }).from(productsTable)
-      .where(and(eq(productsTable.imei, imei), eq(productsTable.id, id))).limit(1);
-    if (!existing) {
-      const [dup] = await db.select({ id: productsTable.id }).from(productsTable)
-        .where(eq(productsTable.imei, imei)).limit(1);
-      if (dup) {
-        res.status(409).json({ error: `Un autre produit avec l'IMEI ${imei} existe déjà` });
-        return;
-      }
+  if (imei && imei !== existing.imei) {
+    const [dup] = await db.select({ id: productsTable.id }).from(productsTable)
+      .where(eq(productsTable.imei, imei)).limit(1);
+    if (dup) {
+      res.status(409).json({ error: `Un autre produit avec l'IMEI ${imei} existe déjà` });
+      return;
     }
   }
 
@@ -154,37 +161,22 @@ router.patch("/:id", requireAuth, async (req, res): Promise<void> => {
   if (entryDate) updates.entryDate = entryDate;
 
   const [row] = await db.update(productsTable).set(updates).where(eq(productsTable.id, id)).returning();
-  if (!row) { res.status(404).json({ error: "Produit non trouvé" }); return; }
-
-  await db.insert(movementsTable).values({
-    movementType: "modification_produit",
-    movementDate: nowDateStr(),
-    movementTime: nowTimeStr(),
-    userId: req.session!.userId!,
-    productId: row.id,
-    productRef: row.productId,
-    imei: row.imei,
-    description: `Modification produit: ${row.product}${row.brand ? " " + row.brand : ""} (${row.productId})`,
-  });
 
   res.json(mapProduct(row, isAdmin));
 });
 
-router.delete("/:id", requireAdmin, async (req, res): Promise<void> => {
+router.delete("/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id);
+  const isAdmin = req.session!.role === "admin";
+  const userId = req.session!.userId!;
+
   const [row] = await db.select().from(productsTable).where(eq(productsTable.id, id)).limit(1);
   if (!row) { res.status(404).json({ error: "Produit non trouvé" }); return; }
 
-  await db.insert(movementsTable).values({
-    movementType: "suppression_produit",
-    movementDate: nowDateStr(),
-    movementTime: nowTimeStr(),
-    userId: req.session!.userId!,
-    productId: row.id,
-    productRef: row.productId,
-    imei: row.imei,
-    description: `Suppression produit: ${row.product}${row.brand ? " " + row.brand : ""} (${row.productId})`,
-  });
+  if (!isAdmin && row.createdByUserId !== userId) {
+    res.status(403).json({ error: "Vous ne pouvez supprimer que les produits que vous avez ajoutés" });
+    return;
+  }
 
   await db.delete(productsTable).where(eq(productsTable.id, id));
   res.status(204).send();

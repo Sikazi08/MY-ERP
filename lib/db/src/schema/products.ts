@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, numeric, date, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, numeric, date, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -18,6 +18,7 @@ export const productsTable = pgTable("products", {
   status: productStatusEnum("status").notNull().default("en_stock"),
   entryDate: date("entry_date", { mode: "string" }).notNull(),
   saleDate: date("sale_date", { mode: "string" }),
+  createdByUserId: integer("created_by_user_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

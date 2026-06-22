@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
+const logoImg = `${import.meta.env.BASE_URL}logo.png`;
 
 const navItems = [
   { href: "/", label: "Tableau de bord", icon: LayoutDashboard, adminOnly: false },
@@ -35,7 +36,6 @@ const navItems = [
 
 export function Layout({ children }: { children: ReactNode }) {
   const { user, isAdmin } = useAuth();
-  const [, setLocation] = useLocation();
   const logout = useLogout();
   const [location] = useLocation();
 
@@ -48,6 +48,12 @@ export function Layout({ children }: { children: ReactNode }) {
   };
 
   const visibleNavItems = navItems.filter((item) => !item.adminOnly || isAdmin);
+
+  const LogoBlock = () => (
+    <div className="flex h-16 items-center px-4 border-b border-sidebar-border">
+      <img src={logoImg} alt="The Homies" className="h-10 w-auto object-contain" />
+    </div>
+  );
 
   const NavLinks = () => (
     <nav className="flex flex-col gap-1 px-2 py-4">
@@ -75,14 +81,7 @@ export function Layout({ children }: { children: ReactNode }) {
     <div className="flex min-h-screen bg-background text-foreground">
       {/* Sidebar Desktop */}
       <aside className="hidden w-64 flex-col border-r border-sidebar-border bg-sidebar md:flex">
-        <div className="flex h-16 items-center px-6 border-b border-sidebar-border">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 bg-primary rounded-md flex items-center justify-center">
-              <span className="text-white font-bold text-xl leading-none">H</span>
-            </div>
-            <span className="font-bold text-lg text-white">THE HOMIES ERP</span>
-          </div>
-        </div>
+        <LogoBlock />
         <div className="flex-1 overflow-y-auto">
           <NavLinks />
         </div>
@@ -99,18 +98,11 @@ export function Layout({ children }: { children: ReactNode }) {
                 </Button>
               </SheetTrigger>
               <SheetContent side="left" className="w-64 p-0 bg-sidebar border-r border-sidebar-border">
-                <div className="flex h-16 items-center px-6 border-b border-sidebar-border">
-                  <div className="flex items-center gap-2">
-                    <div className="h-8 w-8 bg-primary rounded-md flex items-center justify-center">
-                      <span className="text-white font-bold text-xl leading-none">H</span>
-                    </div>
-                    <span className="font-bold text-lg text-white">THE HOMIES</span>
-                  </div>
-                </div>
+                <LogoBlock />
                 <NavLinks />
               </SheetContent>
             </Sheet>
-            <span className="font-bold text-lg md:hidden">THE HOMIES ERP</span>
+            <img src={logoImg} alt="The Homies" className="h-8 w-auto object-contain md:hidden" />
           </div>
 
           <div className="hidden md:flex flex-1" />

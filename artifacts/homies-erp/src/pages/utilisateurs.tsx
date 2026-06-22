@@ -40,8 +40,9 @@ export default function Utilisateurs() {
         setIsAddOpen(false);
         form.reset();
       },
-      onError: (err) => {
-        toast.error("Erreur lors de la création (le nom d'utilisateur existe peut-être déjà)");
+      onError: (e: unknown) => {
+        const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
+        toast.error(msg || "Erreur lors de la création. Le nom d'utilisateur est peut-être déjà utilisé.");
       }
     });
   };

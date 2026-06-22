@@ -168,4 +168,24 @@ router.get("/payment-breakdown", requireAdmin, async (req, res): Promise<void> =
   res.json(breakdown);
 });
 
+router.get("/top-sellers", requireAdmin, async (req, res): Promise<void> => {
+  const limit = parseInt((req.query.limit as string) || "3");
+
+  const rows = await db.select({
+    vendorName: salesTable.vendorName,
+    salesCount: sql<number>`count(*)::int`,
+    revenue: sql<number>`sum(${salesTable.amount}::numeric)`,
+  }).from(salesTable)
+    .where(and(eq(salesTable.cancelled, false), sql`${salesTable.vendorName} is not null`))
+    .groupBy(salesTable.vendorName)
+    .orderBy(sql`count(*) desc`)
+    .limit(limit);
+
+  res.json(rows.map(r => ({
+    vendorName: r.vendorName ?? "",
+    salesCount: r.salesCount,
+    revenue: Number(r.revenue ?? 0),
+  })));
+});
+
 export default router;

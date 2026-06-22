@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { db, productsTable, movementsTable } from "@workspace/db";
-import { eq, ilike, or, and, gte, lte } from "drizzle-orm";
-import { requireAuth, requireAdmin } from "../middlewares/auth";
+import { db, productsTable, movementsTable, partnerMovementsTable, partnersTable } from "@workspace/db";
+import { eq, ilike, or, and, gte, lte, inArray } from "drizzle-orm";
+import { requireAuth } from "../middlewares/auth";
 
 const router = Router();
 
@@ -17,7 +17,7 @@ async function generateProductId(): Promise<string> {
 function nowDateStr() { return new Date().toISOString().split("T")[0]; }
 function nowTimeStr() { return new Date().toTimeString().slice(0, 8); }
 
-function mapProduct(p: typeof productsTable.$inferSelect, isAdmin: boolean) {
+function mapProduct(p: typeof productsTable.$inferSelect, isAdmin: boolean, partnerName?: string | null) {
   return {
     ...p,
     brand: p.brand || null,
@@ -26,7 +26,30 @@ function mapProduct(p: typeof productsTable.$inferSelect, isAdmin: boolean) {
     profit: isAdmin && p.purchasePrice !== null && p.sellingPrice !== null
       ? Number(p.sellingPrice) - Number(p.purchasePrice)
       : null,
+    partnerName: partnerName || null,
   };
+}
+
+async function getPartnerNames(rows: typeof productsTable.$inferSelect[]): Promise<Map<number, string>> {
+  const chezIds = rows.filter(p => p.status === "chez_partenaire").map(p => p.id);
+  const partnerNameMap = new Map<number, string>();
+  if (chezIds.length === 0) return partnerNameMap;
+
+  const movements = await db.select({
+    productId: partnerMovementsTable.productId,
+    partnerName: partnersTable.name,
+    movId: partnerMovementsTable.id,
+  }).from(partnerMovementsTable)
+    .leftJoin(partnersTable, eq(partnerMovementsTable.partnerId, partnersTable.id))
+    .where(and(
+      inArray(partnerMovementsTable.productId, chezIds),
+      eq(partnerMovementsTable.movementType, "sortie"),
+    ));
+
+  for (const m of movements) {
+    if (m.partnerName) partnerNameMap.set(m.productId, m.partnerName);
+  }
+  return partnerNameMap;
 }
 
 router.get("/", requireAuth, async (req, res): Promise<void> => {
@@ -51,6 +74,7 @@ router.get("/", requireAuth, async (req, res): Promise<void> => {
     : await db.select().from(productsTable).orderBy(productsTable.id);
 
   const isAdmin = req.session!.role === "admin";
+  const partnerNames = await getPartnerNames(rows);
 
   const pageNum = parseInt(page || "1");
   const limitNum = parseInt(limit || "100");
@@ -58,7 +82,7 @@ router.get("/", requireAuth, async (req, res): Promise<void> => {
   const paginated = rows.slice((pageNum - 1) * limitNum, pageNum * limitNum);
 
   res.json({
-    data: paginated.map(p => mapProduct(p, isAdmin)),
+    data: paginated.map(p => mapProduct(p, isAdmin, partnerNames.get(p.id))),
     total,
     page: pageNum,
     limit: limitNum,
@@ -116,7 +140,8 @@ router.get("/:id", requireAuth, async (req, res): Promise<void> => {
   const [row] = await db.select().from(productsTable).where(eq(productsTable.id, id)).limit(1);
   if (!row) { res.status(404).json({ error: "Produit non trouvé" }); return; }
   const isAdmin = req.session!.role === "admin";
-  res.json(mapProduct(row, isAdmin));
+  const partnerNames = await getPartnerNames([row]);
+  res.json(mapProduct(row, isAdmin, partnerNames.get(row.id)));
 });
 
 router.patch("/:id", requireAuth, async (req, res): Promise<void> => {

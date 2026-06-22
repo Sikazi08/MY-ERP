@@ -13,8 +13,10 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Loader2, Plus, Edit2, Trash2, UserCheck, UserX, Phone, User } from "lucide-react";
+import { formatDateFr } from "@/lib/format";
+import { Loader2, Plus, Edit2, Trash2, UserCheck, UserX, Phone, User, ShoppingCart, Calendar } from "lucide-react";
 
+type SellerWithStats = Seller & { salesCount?: number; lastSaleDate?: string | null };
 type SellerForm = { name: string; phone: string };
 type EditSellerForm = { name: string; phone: string; isActive: boolean };
 
@@ -65,12 +67,12 @@ function SellerFormFields({
 export default function Vendeurs() {
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [editSeller, setEditSeller] = useState<Seller | null>(null);
+  const [editSeller, setEditSeller] = useState<SellerWithStats | null>(null);
 
   const [form, setForm] = useState<SellerForm>(EMPTY_FORM);
   const [editForm, setEditForm] = useState<EditSellerForm>({ name: "", phone: "", isActive: true });
 
-  const { data: sellers = [], isLoading } = useListSellers();
+  const { data: sellers = [], isLoading } = useListSellers() as { data: SellerWithStats[]; isLoading: boolean };
   const createMutation = useCreateSeller();
   const updateMutation = useUpdateSeller();
   const deleteMutation = useDeleteSeller();
@@ -97,7 +99,7 @@ export default function Vendeurs() {
     );
   };
 
-  const openEdit = (s: Seller) => {
+  const openEdit = (s: SellerWithStats) => {
     setEditSeller(s);
     setEditForm({ name: s.name, phone: s.phone ?? "", isActive: s.isActive });
   };
@@ -131,7 +133,7 @@ export default function Vendeurs() {
     );
   };
 
-  const handleDelete = (s: Seller) => {
+  const handleDelete = (s: SellerWithStats) => {
     if (!confirm(`Supprimer définitivement "${s.name}" ?`)) return;
     deleteMutation.mutate(
       { id: s.id },
@@ -188,6 +190,12 @@ export default function Vendeurs() {
             <TableRow className="border-border hover:bg-transparent bg-muted/50">
               <TableHead>Nom</TableHead>
               <TableHead>Téléphone</TableHead>
+              <TableHead className="text-center">
+                <div className="flex items-center gap-1 justify-center"><ShoppingCart className="h-3.5 w-3.5" /> Nb Ventes</div>
+              </TableHead>
+              <TableHead>
+                <div className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> Dernière Vente</div>
+              </TableHead>
               <TableHead>Statut</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -195,13 +203,13 @@ export default function Vendeurs() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={4} className="h-24 text-center">
+                <TableCell colSpan={6} className="h-24 text-center">
                   <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />
                 </TableCell>
               </TableRow>
             ) : sellers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                   Aucun vendeur enregistré.
                 </TableCell>
               </TableRow>
@@ -217,6 +225,14 @@ export default function Vendeurs() {
                     ) : (
                       <span className="text-muted-foreground/50">—</span>
                     )}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Badge variant="outline" className="font-mono">
+                      {s.salesCount ?? 0}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {s.lastSaleDate ? formatDateFr(s.lastSaleDate) : <span className="text-muted-foreground/50">—</span>}
                   </TableCell>
                   <TableCell>
                     {s.isActive

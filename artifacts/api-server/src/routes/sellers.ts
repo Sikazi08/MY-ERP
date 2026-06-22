@@ -1,23 +1,38 @@
 import { Router } from "express";
 import { db, sellersTable, salesTable, productsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 
 const router = Router();
 
 router.get("/", requireAuth, async (req, res): Promise<void> => {
   const { activeOnly } = req.query as Record<string, string>;
-  const rows = activeOnly === "true"
-    ? await db.select().from(sellersTable).where(eq(sellersTable.isActive, true)).orderBy(sellersTable.name)
-    : await db.select().from(sellersTable).orderBy(sellersTable.name);
-  res.json(rows);
+
+  const rows = await db.select({
+    id: sellersTable.id,
+    name: sellersTable.name,
+    phone: sellersTable.phone,
+    address: sellersTable.address,
+    notes: sellersTable.notes,
+    isActive: sellersTable.isActive,
+    createdAt: sellersTable.createdAt,
+    salesCount: sql<number>`count(${salesTable.id}) filter (where ${salesTable.cancelled} = false)::int`,
+    lastSaleDate: sql<string | null>`max(${salesTable.saleDate}) filter (where ${salesTable.cancelled} = false)`,
+  })
+    .from(sellersTable)
+    .leftJoin(salesTable, eq(salesTable.vendorId, sellersTable.id))
+    .groupBy(sellersTable.id)
+    .orderBy(sellersTable.name);
+
+  const filtered = activeOnly === "true" ? rows.filter(r => r.isActive) : rows;
+  res.json(filtered);
 });
 
 router.post("/", requireAdmin, async (req, res): Promise<void> => {
   const { name, phone, address, notes } = req.body;
   if (!name) { res.status(400).json({ error: "Le nom du vendeur est requis" }); return; }
   const [row] = await db.insert(sellersTable).values({ name, phone, address, notes }).returning();
-  res.status(201).json(row);
+  res.status(201).json({ ...row, salesCount: 0, lastSaleDate: null });
 });
 
 router.patch("/:id", requireAdmin, async (req, res): Promise<void> => {

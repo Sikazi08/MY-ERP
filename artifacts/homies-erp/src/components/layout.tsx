@@ -51,7 +51,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
   const LogoBlock = () => (
     <div className="flex h-16 items-center px-4 border-b border-sidebar-border">
-      <img src={logoImg} alt="The Homies" className="h-14 w-auto object-contain" />
+      <img src={logoImg} alt="The Homies" className="h-16 w-auto object-contain" />
     </div>
   );
 

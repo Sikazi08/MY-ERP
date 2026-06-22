@@ -63,7 +63,8 @@ router.get("/", requireAuth, async (req, res): Promise<void> => {
 router.post("/", requireAuth, async (req, res): Promise<void> => {
   const { productId, saleType, paymentMode, amount, clientName, clientPhone,
     vendorId, vendorName,
-    trocImei, trocProduct, trocBrand, trocCapacity, trocColor } = req.body;
+    trocImei, trocProduct, trocBrand, trocCapacity, trocColor,
+    trocHasInvoice } = req.body;
 
   if (!productId || !saleType || !paymentMode || !amount) {
     res.status(400).json({ error: "Données de vente incomplètes" });
@@ -93,7 +94,7 @@ router.post("/", requireAuth, async (req, res): Promise<void> => {
     }
   }
 
-  let resolvedVendorName: string | null = null;
+  let resolvedVendorName: string | null = vendorName || null;
   let resolvedVendorId: number | null = null;
 
   if (vendorId) {
@@ -102,13 +103,17 @@ router.post("/", requireAuth, async (req, res): Promise<void> => {
       resolvedVendorId = vendor.id;
       resolvedVendorName = vendor.name;
     }
-  } else if (vendorName) {
-    resolvedVendorName = vendorName;
   }
 
   let trocProductId: number | null = null;
   if (saleType === "troc" && trocProduct) {
     const trocProdId = await generateProductId();
+
+    // Auto-calculate purchase price of troc phone = selling price of sold phone - amount paid
+    const trocPurchasePrice = product.sellingPrice !== null
+      ? Math.max(0, Number(product.sellingPrice) - Number(amount))
+      : null;
+
     const [trocRow] = await db.insert(productsTable).values({
       productId: trocProdId,
       imei: trocImei || null,
@@ -118,6 +123,8 @@ router.post("/", requireAuth, async (req, res): Promise<void> => {
       color: trocColor || null,
       status: "en_stock",
       entryDate: today,
+      purchasePrice: trocPurchasePrice !== null ? String(trocPurchasePrice) : null,
+      createdByUserId: req.session!.userId!,
     }).returning();
     trocProductId = trocRow.id;
 
@@ -129,7 +136,7 @@ router.post("/", requireAuth, async (req, res): Promise<void> => {
       productId: trocRow.id,
       productRef: trocRow.productId,
       imei: trocRow.imei,
-      description: `Entrée troc: ${trocProduct}${trocBrand ? " " + trocBrand : ""} (${trocProdId})`,
+      description: `Entrée troc: ${trocProduct}${trocBrand ? " " + trocBrand : ""} (${trocProdId})${trocPurchasePrice !== null ? ` — PA: ${trocPurchasePrice} FCFA` : ""}${trocHasInvoice ? " [Facture remise]" : ""}`,
     });
   }
 

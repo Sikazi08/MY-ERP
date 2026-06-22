@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useAuth } from "@/lib/auth-context";
 import {
   useListSales, useCreateSale, useCancelSale,
@@ -14,8 +14,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Loader2, Plus, Search, Download, Ban } from "lucide-react";
+import { Loader2, Plus, Search, Download, Ban, Upload, FileText } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 
@@ -28,17 +30,23 @@ export default function Ventes() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [trocHasInvoice, setTrocHasInvoice] = useState(false);
+  const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
+  const invoiceInputRef = useRef<HTMLInputElement>(null);
 
   const { data: sales = [], isLoading } = useListSales(
     { search: search || undefined },
     { query: { queryKey: getListSalesQueryKey({ search: search || undefined }) } }
   );
 
-  const { data: productsPage } = useListProducts(
-    { status: "en_stock", limit: 500 },
-    { query: { queryKey: getListProductsQueryKey({ status: "en_stock", limit: 500 }) } }
+  // Load all non-vendu products (en_stock + chez_partenaire)
+  const { data: allProductsPage } = useListProducts(
+    { limit: 1000 },
+    { query: { queryKey: getListProductsQueryKey({ limit: 1000 }) } }
   );
-  const enStockProducts = productsPage?.data ?? [];
+  const availableProducts = (allProductsPage?.data ?? []).filter(
+    p => p.status === "en_stock" || p.status === "chez_partenaire"
+  );
 
   const { data: sellers = [] } = useListSellers({ activeOnly: "true" });
 
@@ -57,6 +65,14 @@ export default function Ventes() {
 
   const watchSaleType = form.watch("saleType");
   const watchProductId = form.watch("productId");
+  const watchAmount = form.watch("amount");
+
+  const selectedProductData = availableProducts.find(p => p.id === Number(watchProductId));
+
+  // Troc: calculated purchase price = product selling price - amount paid
+  const trocPurchasePrice = watchSaleType === "troc" && selectedProductData?.sellingPrice && watchAmount
+    ? Math.max(0, Number(selectedProductData.sellingPrice) - Number(watchAmount))
+    : null;
 
   const onSubmit = (data: SaleInput) => {
     if (!data.productId) {
@@ -76,12 +92,16 @@ export default function Ventes() {
       return;
     }
 
-    createMutation.mutate({ data }, {
+    const payload = { ...data, trocHasInvoice: trocHasInvoice ? true : undefined };
+
+    createMutation.mutate({ data: payload as SaleInput }, {
       onSuccess: () => {
         toast.success("Vente enregistrée avec succès");
         queryClient.invalidateQueries({ queryKey: getListSalesQueryKey() });
         queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
         setIsAddOpen(false);
+        setTrocHasInvoice(false);
+        setInvoiceFile(null);
         form.reset({
           saleType: "normal",
           paymentMode: "Cash",
@@ -102,14 +122,16 @@ export default function Ventes() {
     if (reason) {
       cancelMutation.mutate({ id, data: { reason } }, {
         onSuccess: () => {
-          toast.success("Vente annulée");
+          toast.success("Vente annulée avec succès");
           queryClient.invalidateQueries({ queryKey: getListSalesQueryKey() });
+        },
+        onError: (e: unknown) => {
+          const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
+          toast.error(msg || "Erreur lors de l'annulation");
         },
       });
     }
   };
-
-  const selectedProductData = enStockProducts.find(p => p.id === Number(watchProductId));
 
   return (
     <div className="space-y-6">
@@ -121,7 +143,11 @@ export default function Ventes() {
           </Button>}
           <Dialog open={isAddOpen} onOpenChange={(open) => {
             setIsAddOpen(open);
-            if (!open) form.reset({ saleType: "normal", paymentMode: "Cash", amount: 0, clientName: "", clientPhone: "" });
+            if (!open) {
+              form.reset({ saleType: "normal", paymentMode: "Cash", amount: 0, clientName: "", clientPhone: "" });
+              setTrocHasInvoice(false);
+              setInvoiceFile(null);
+            }
           }}>
             <DialogTrigger asChild>
               <Button className="w-full sm:w-auto"><Plus className="mr-2 h-4 w-4" /> Nouvelle Vente</Button>
@@ -141,18 +167,24 @@ export default function Ventes() {
                         <Select
                           onValueChange={(val) => {
                             field.onChange(Number(val));
-                            const p = enStockProducts.find(x => x.id === Number(val));
+                            const p = availableProducts.find(x => x.id === Number(val));
                             if (p?.sellingPrice) form.setValue("amount", p.sellingPrice);
+                            // Auto-fill vendor name if product is at a partner
+                            if (p?.status === "chez_partenaire" && (p as any).partnerName) {
+                              form.setValue("vendorName", (p as any).partnerName);
+                            }
                           }}
                           value={field.value?.toString() ?? ""}
                         >
                           <FormControl>
-                            <SelectTrigger><SelectValue placeholder="Sélectionner un produit en stock" /></SelectTrigger>
+                            <SelectTrigger><SelectValue placeholder="Sélectionner un produit" /></SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {enStockProducts.map(p => (
+                            {availableProducts.map(p => (
                               <SelectItem key={p.id} value={p.id.toString()}>
+                                {p.status === "chez_partenaire" && "🤝 "}
                                 {p.productId} — {p.product}{p.brand ? ` ${p.brand}` : ""}{p.capacity ? ` ${p.capacity}` : ""} — {formatFCFA(p.sellingPrice)}
+                                {p.status === "chez_partenaire" && (p as any).partnerName ? ` (${(p as any).partnerName})` : ""}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -163,7 +195,10 @@ export default function Ventes() {
                   />
 
                   {selectedProductData && (
-                    <div className="text-xs text-muted-foreground bg-muted/30 rounded px-3 py-2 border border-border">
+                    <div className={`text-xs bg-muted/30 rounded px-3 py-2 border ${selectedProductData.status === "chez_partenaire" ? "border-blue-500/40 text-blue-400" : "border-border text-muted-foreground"}`}>
+                      {selectedProductData.status === "chez_partenaire" && (
+                        <span className="font-semibold">🤝 Chez partenaire{(selectedProductData as any).partnerName ? ` : ${(selectedProductData as any).partnerName}` : ""} · </span>
+                      )}
                       IMEI : {selectedProductData.imei || "—"} · Couleur : {selectedProductData.color || "—"}
                     </div>
                   )}
@@ -172,7 +207,7 @@ export default function Ventes() {
                     <FormField control={form.control} name="saleType" render={({ field }) => (
                       <FormItem>
                         <FormLabel>Type de vente</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={(val) => { field.onChange(val); if (val !== "troc") { setTrocHasInvoice(false); setInvoiceFile(null); }}} defaultValue={field.value}>
                           <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                           <SelectContent>
                             <SelectItem value="normal">Vente normale</SelectItem>
@@ -221,27 +256,34 @@ export default function Ventes() {
                         </FormItem>
                       )}
                     />
-                    {sellers.length > 0 && (
-                      <FormField control={form.control} name="vendorId" render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Vendeur externe (Optionnel)</FormLabel>
-                          <Select onValueChange={(val) => {
-                            const id = Number(val);
-                            field.onChange(id || undefined);
+                    <FormField control={form.control} name="vendorId" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Vendeur externe (Optionnel)</FormLabel>
+                        <Select onValueChange={(val) => {
+                          const id = Number(val);
+                          field.onChange(id || undefined);
+                          if (id) {
                             const s = sellers.find(x => x.id === id);
                             if (s) form.setValue("vendorName", s.name);
-                          }} value={field.value?.toString() ?? ""}>
-                            <FormControl><SelectTrigger><SelectValue placeholder="Aucun" /></SelectTrigger></FormControl>
-                            <SelectContent>
-                              <SelectItem value="0">Aucun</SelectItem>
-                              {sellers.map(s => <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                    )}
+                          }
+                        }} value={field.value?.toString() ?? ""}>
+                          <FormControl><SelectTrigger><SelectValue placeholder="Aucun" /></SelectTrigger></FormControl>
+                          <SelectContent>
+                            <SelectItem value="0">Aucun</SelectItem>
+                            {sellers.map(s => <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
                   </div>
+
+                  {/* Show auto-filled partner as vendor name (read-only info) */}
+                  {selectedProductData?.status === "chez_partenaire" && (selectedProductData as any).partnerName && (
+                    <div className="text-xs bg-blue-500/10 text-blue-400 border border-blue-500/30 rounded px-3 py-2">
+                      ✓ Vendeur auto-rempli : <strong>{(selectedProductData as any).partnerName}</strong> (partenaire)
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-2 gap-4">
                     <FormField control={form.control} name="clientName" render={({ field }) => (
@@ -263,6 +305,16 @@ export default function Ventes() {
                   {watchSaleType === "troc" && (
                     <div className="border border-primary/30 bg-primary/5 p-4 rounded-lg space-y-4">
                       <h4 className="font-semibold text-primary">Appareil reçu en Troc</h4>
+
+                      {trocPurchasePrice !== null && (
+                        <div className="text-sm bg-green-500/10 border border-green-500/20 text-green-400 rounded px-3 py-2">
+                          💡 Prix d'achat calculé automatiquement : <strong>{formatFCFA(trocPurchasePrice)}</strong>
+                          <span className="text-xs block text-green-500/70 mt-0.5">
+                            PV ({formatFCFA(selectedProductData?.sellingPrice)}) − Somme reçue ({formatFCFA(watchAmount)})
+                          </span>
+                        </div>
+                      )}
+
                       <div className="grid grid-cols-2 gap-4">
                         <FormField
                           control={form.control}
@@ -345,6 +397,52 @@ export default function Ventes() {
                             </FormItem>
                           )}
                         />
+                      </div>
+
+                      {/* Invoice checkbox */}
+                      <div className="border-t border-primary/20 pt-3 space-y-3">
+                        <div className="flex items-center gap-3">
+                          <Checkbox
+                            id="troc-invoice"
+                            checked={trocHasInvoice}
+                            onCheckedChange={(v) => {
+                              setTrocHasInvoice(!!v);
+                              if (!v) setInvoiceFile(null);
+                            }}
+                          />
+                          <Label htmlFor="troc-invoice" className="cursor-pointer text-sm">
+                            Le client a remis sa facture ?
+                          </Label>
+                        </div>
+                        {trocHasInvoice && (
+                          <div className="flex items-center gap-3">
+                            <input
+                              ref={invoiceInputRef}
+                              type="file"
+                              accept=".pdf,.jpg,.jpeg,.png"
+                              className="hidden"
+                              onChange={(e) => {
+                                const f = e.target.files?.[0];
+                                if (f) { setInvoiceFile(f); toast.success(`Facture importée : ${f.name}`); }
+                              }}
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => invoiceInputRef.current?.click()}
+                              className="text-sm"
+                            >
+                              <Upload className="h-4 w-4 mr-2" /> Importer la facture
+                            </Button>
+                            {invoiceFile && (
+                              <div className="flex items-center gap-1 text-xs text-green-400">
+                                <FileText className="h-3.5 w-3.5" />
+                                {invoiceFile.name}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}

@@ -18,13 +18,171 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Loader2, Plus, Search, Download, Trash2, Edit2, ChevronLeft, ChevronRight } from "lucide-react";
 import { useForm } from "react-hook-form";
-import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { format } from "date-fns";
 
 const BRANDS = ["Apple", "Samsung", "Xiaomi", "Tecno", "Infinix", "itel", "Huawei", "Oppo", "Vivo", "Realme", "Nokia", "Autre"];
 const CAPACITIES = ["16 Go", "32 Go", "64 Go", "128 Go", "256 Go", "512 Go", "1 To"];
 const COLORS = ["Noir", "Blanc", "Bleu", "Rouge", "Or", "Argent", "Vert", "Gris", "Rose", "Violet", "Autre"];
 const PAGE_SIZE = 20;
+
+type ProductFormData = ProductInput & { quantity?: number };
+
+function ProductFormFields({
+  f,
+  isAdmin,
+  showQuantity = false,
+}: {
+  f: ReturnType<typeof useForm<ProductFormData>>;
+  isAdmin: boolean;
+  showQuantity?: boolean;
+}) {
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-4">
+        <FormField control={f.control} name="product" rules={{ required: "Le nom du produit est obligatoire" }} render={({ field }) => (
+          <FormItem>
+            <FormLabel>Nom du produit *</FormLabel>
+            <FormControl><Input {...field} /></FormControl>
+            <FormMessage />
+          </FormItem>
+        )} />
+        <FormField control={f.control} name="brand" render={({ field }) => (
+          <FormItem>
+            <FormLabel>Marque</FormLabel>
+            <Select onValueChange={field.onChange} value={field.value ?? ""}>
+              <FormControl><SelectTrigger><SelectValue placeholder="Choisir..." /></SelectTrigger></FormControl>
+              <SelectContent>{BRANDS.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
+            </Select>
+            <FormMessage />
+          </FormItem>
+        )} />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <FormField control={f.control} name="imei" render={({ field }) => (
+          <FormItem>
+            <FormLabel>IMEI (Optionnel)</FormLabel>
+            <FormControl><Input {...field} /></FormControl>
+            <FormMessage />
+          </FormItem>
+        )} />
+        <FormField control={f.control} name="supplier" render={({ field }) => (
+          <FormItem>
+            <FormLabel>Fournisseur</FormLabel>
+            <FormControl><Input {...field} /></FormControl>
+            <FormMessage />
+          </FormItem>
+        )} />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <FormField control={f.control} name="capacity" render={({ field }) => (
+          <FormItem>
+            <FormLabel>Capacité</FormLabel>
+            <Select onValueChange={field.onChange} value={field.value ?? ""}>
+              <FormControl><SelectTrigger><SelectValue placeholder="Choisir..." /></SelectTrigger></FormControl>
+              <SelectContent>{CAPACITIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+            </Select>
+            <FormMessage />
+          </FormItem>
+        )} />
+        <FormField control={f.control} name="color" render={({ field }) => (
+          <FormItem>
+            <FormLabel>Couleur</FormLabel>
+            <Select onValueChange={field.onChange} value={field.value ?? ""}>
+              <FormControl><SelectTrigger><SelectValue placeholder="Choisir..." /></SelectTrigger></FormControl>
+              <SelectContent>{COLORS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+            </Select>
+            <FormMessage />
+          </FormItem>
+        )} />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        {isAdmin && (
+          <FormField control={f.control} name="purchasePrice" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Prix d'achat</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  min={0}
+                  {...field}
+                  value={field.value ?? ""}
+                  onChange={e => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )} />
+        )}
+        <FormField control={f.control} name="sellingPrice" rules={{ required: "Le prix de vente est obligatoire" }} render={({ field }) => (
+          <FormItem>
+            <FormLabel>Prix de vente *</FormLabel>
+            <FormControl>
+              <Input
+                type="number"
+                min={0}
+                {...field}
+                value={field.value ?? ""}
+                onChange={e => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+              />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )} />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <FormField control={f.control} name="status" render={({ field }) => (
+          <FormItem>
+            <FormLabel>Statut</FormLabel>
+            <Select onValueChange={field.onChange} value={field.value}>
+              <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+              <SelectContent>
+                <SelectItem value="en_stock">En Stock</SelectItem>
+                <SelectItem value="chez_partenaire">Chez Partenaire</SelectItem>
+                <SelectItem value="vendu">Vendu</SelectItem>
+              </SelectContent>
+            </Select>
+            <FormMessage />
+          </FormItem>
+        )} />
+        <FormField control={f.control} name="entryDate" rules={{ required: "La date d'entrée est obligatoire" }} render={({ field }) => (
+          <FormItem>
+            <FormLabel>Date d'entrée *</FormLabel>
+            <FormControl><Input type="date" {...field} /></FormControl>
+            <FormMessage />
+          </FormItem>
+        )} />
+      </div>
+      {showQuantity && (
+        <FormField
+          control={f.control}
+          name="quantity"
+          rules={{
+            required: "La quantité est obligatoire",
+            min: { value: 1, message: "La quantité doit être au moins 1" },
+            max: { value: 50, message: "La quantité ne peut pas dépasser 50" },
+          }}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Quantité *</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  min={1}
+                  max={50}
+                  {...field}
+                  value={field.value ?? 1}
+                  onChange={e => field.onChange(e.target.value ? Number(e.target.value) : 1)}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      )}
+    </>
+  );
+}
 
 export default function Stock() {
   const { isAdmin } = useAuth();
@@ -59,34 +217,68 @@ export default function Stock() {
   const updateMutation = useUpdateProduct();
   const deleteMutation = useDeleteProduct();
 
-  const form = useForm<ProductInput>({
-    defaultValues: { product: "", brand: "", status: "en_stock", entryDate: format(new Date(), "yyyy-MM-dd") },
+  const form = useForm<ProductFormData>({
+    defaultValues: {
+      product: "",
+      brand: "",
+      status: "en_stock",
+      entryDate: format(new Date(), "yyyy-MM-dd"),
+      quantity: 1,
+    },
   });
 
-  const editForm = useForm<ProductInput>({
+  const editForm = useForm<ProductFormData>({
     defaultValues: { product: "", brand: "", status: "en_stock", entryDate: "" },
   });
 
-  const onSubmit = (data: ProductInput) => {
-    createMutation.mutate({ data }, {
-      onSuccess: () => {
-        toast.success("Produit ajouté avec succès");
-        queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
-        setIsAddOpen(false);
-        form.reset();
-      },
-      onError: (e: unknown) => {
-        const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
-        toast.error(msg || "Erreur lors de l'ajout");
-      },
-    });
+  const onSubmit = async (data: ProductFormData) => {
+    const { quantity = 1, ...productData } = data;
+    let successCount = 0;
+    let lastError: string | undefined;
+
+    for (let i = 0; i < quantity; i++) {
+      try {
+        await new Promise<void>((resolve, reject) => {
+          createMutation.mutate({ data: productData }, {
+            onSuccess: () => { successCount++; resolve(); },
+            onError: (e: unknown) => {
+              lastError = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
+              reject(e);
+            },
+          });
+        });
+      } catch {
+        break;
+      }
+    }
+
+    if (successCount > 0) {
+      toast.success(
+        quantity === 1
+          ? "Produit ajouté avec succès"
+          : `${successCount} produit(s) ajouté(s) avec succès`
+      );
+      queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
+      setIsAddOpen(false);
+      form.reset({
+        product: "",
+        brand: "",
+        status: "en_stock",
+        entryDate: format(new Date(), "yyyy-MM-dd"),
+        quantity: 1,
+      });
+    }
+    if (lastError) {
+      toast.error(lastError || "Erreur lors de l'ajout");
+    }
   };
 
-  const onEditSubmit = (data: ProductInput) => {
+  const onEditSubmit = (data: ProductFormData) => {
     if (!selectedProduct) return;
-    updateMutation.mutate({ id: selectedProduct.id, data }, {
+    const { quantity: _q, ...productData } = data;
+    updateMutation.mutate({ id: selectedProduct.id, data: productData }, {
       onSuccess: () => {
-        toast.success("Produit modifié");
+        toast.success("Produit modifié avec succès");
         queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
         setIsEditOpen(false);
         setSelectedProduct(null);
@@ -124,84 +316,6 @@ export default function Stock() {
     }
   };
 
-  const ProductFormFields = ({ f }: { f: ReturnType<typeof useForm<ProductInput>> }) => (
-    <>
-      <div className="grid grid-cols-2 gap-4">
-        <FormField control={f.control} name="product" render={({ field }) => (
-          <FormItem><FormLabel>Nom du produit *</FormLabel><FormControl><Input {...field} required /></FormControl></FormItem>
-        )} />
-        <FormField control={f.control} name="brand" render={({ field }) => (
-          <FormItem>
-            <FormLabel>Marque</FormLabel>
-            <Select onValueChange={field.onChange} value={field.value ?? ""}>
-              <FormControl><SelectTrigger><SelectValue placeholder="Choisir..." /></SelectTrigger></FormControl>
-              <SelectContent>{BRANDS.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
-            </Select>
-          </FormItem>
-        )} />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <FormField control={f.control} name="imei" render={({ field }) => (
-          <FormItem><FormLabel>IMEI (Optionnel)</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
-        )} />
-        <FormField control={f.control} name="supplier" render={({ field }) => (
-          <FormItem><FormLabel>Fournisseur</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
-        )} />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <FormField control={f.control} name="capacity" render={({ field }) => (
-          <FormItem>
-            <FormLabel>Capacité</FormLabel>
-            <Select onValueChange={field.onChange} value={field.value ?? ""}>
-              <FormControl><SelectTrigger><SelectValue placeholder="Choisir..." /></SelectTrigger></FormControl>
-              <SelectContent>{CAPACITIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-            </Select>
-          </FormItem>
-        )} />
-        <FormField control={f.control} name="color" render={({ field }) => (
-          <FormItem>
-            <FormLabel>Couleur</FormLabel>
-            <Select onValueChange={field.onChange} value={field.value ?? ""}>
-              <FormControl><SelectTrigger><SelectValue placeholder="Choisir..." /></SelectTrigger></FormControl>
-              <SelectContent>{COLORS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-            </Select>
-          </FormItem>
-        )} />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        {isAdmin && (
-          <FormField control={f.control} name="purchasePrice" render={({ field }) => (
-            <FormItem><FormLabel>Prix d'achat</FormLabel>
-              <FormControl><Input type="number" {...field} onChange={e => field.onChange(e.target.value ? Number(e.target.value) : undefined)} /></FormControl>
-            </FormItem>
-          )} />
-        )}
-        <FormField control={f.control} name="sellingPrice" render={({ field }) => (
-          <FormItem><FormLabel>Prix de vente</FormLabel>
-            <FormControl><Input type="number" {...field} onChange={e => field.onChange(e.target.value ? Number(e.target.value) : undefined)} /></FormControl>
-          </FormItem>
-        )} />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <FormField control={f.control} name="status" render={({ field }) => (
-          <FormItem><FormLabel>Statut</FormLabel>
-            <Select onValueChange={field.onChange} value={field.value}>
-              <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-              <SelectContent>
-                <SelectItem value="en_stock">En Stock</SelectItem>
-                <SelectItem value="chez_partenaire">Chez Partenaire</SelectItem>
-                <SelectItem value="vendu">Vendu</SelectItem>
-              </SelectContent>
-            </Select>
-          </FormItem>
-        )} />
-        <FormField control={f.control} name="entryDate" render={({ field }) => (
-          <FormItem><FormLabel>Date d'entrée *</FormLabel><FormControl><Input type="date" {...field} required /></FormControl></FormItem>
-        )} />
-      </div>
-    </>
-  );
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -210,7 +324,10 @@ export default function Stock() {
           <Button variant="outline" onClick={() => window.open('/api/exports/stock', '_blank')} className="w-full sm:w-auto">
             <Download className="mr-2 h-4 w-4" /> Exporter
           </Button>
-          <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+          <Dialog open={isAddOpen} onOpenChange={(open) => {
+            setIsAddOpen(open);
+            if (!open) form.reset({ product: "", brand: "", status: "en_stock", entryDate: format(new Date(), "yyyy-MM-dd"), quantity: 1 });
+          }}>
             <DialogTrigger asChild>
               <Button className="w-full sm:w-auto"><Plus className="mr-2 h-4 w-4" /> Nouveau Produit</Button>
             </DialogTrigger>
@@ -218,7 +335,7 @@ export default function Stock() {
               <DialogHeader><DialogTitle>Ajouter un produit</DialogTitle></DialogHeader>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  <ProductFormFields f={form} />
+                  <ProductFormFields f={form} isAdmin={isAdmin} showQuantity />
                   <Button type="submit" className="w-full mt-4" disabled={createMutation.isPending}>
                     {createMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Enregistrer"}
                   </Button>
@@ -341,7 +458,7 @@ export default function Stock() {
           </DialogHeader>
           <Form {...editForm}>
             <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
-              <ProductFormFields f={editForm} />
+              <ProductFormFields f={editForm} isAdmin={isAdmin} showQuantity={false} />
               <Button type="submit" className="w-full mt-4" disabled={updateMutation.isPending}>
                 {updateMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Enregistrer"}
               </Button>

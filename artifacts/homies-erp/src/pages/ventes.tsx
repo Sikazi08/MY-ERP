@@ -17,7 +17,11 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Loader2, Plus, Search, Download, Ban } from "lucide-react";
 import { useForm } from "react-hook-form";
-import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+
+const BRANDS = ["Apple", "Samsung", "Xiaomi", "Tecno", "Infinix", "itel", "Huawei", "Oppo", "Vivo", "Realme", "Nokia", "Autre"];
+const CAPACITIES = ["16 Go", "32 Go", "64 Go", "128 Go", "256 Go", "512 Go", "1 To"];
+const COLORS = ["Noir", "Blanc", "Bleu", "Rouge", "Or", "Argent", "Vert", "Gris", "Rose", "Violet", "Autre"];
 
 export default function Ventes() {
   const { isAdmin } = useAuth();
@@ -55,17 +59,40 @@ export default function Ventes() {
   const watchProductId = form.watch("productId");
 
   const onSubmit = (data: SaleInput) => {
+    if (!data.productId) {
+      form.setError("productId", { message: "Veuillez sélectionner un produit" });
+      return;
+    }
+    if (!data.amount || data.amount <= 0) {
+      form.setError("amount", { message: "Le montant doit être supérieur à 0" });
+      return;
+    }
+    if (data.saleType === "troc" && !data.trocProduct) {
+      form.setError("trocProduct", { message: "Le nom de l'appareil reçu en troc est obligatoire" });
+      return;
+    }
+    if (data.saleType === "troc" && !data.trocBrand) {
+      form.setError("trocBrand", { message: "La marque de l'appareil troc est obligatoire" });
+      return;
+    }
+
     createMutation.mutate({ data }, {
       onSuccess: () => {
         toast.success("Vente enregistrée avec succès");
         queryClient.invalidateQueries({ queryKey: getListSalesQueryKey() });
         queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
         setIsAddOpen(false);
-        form.reset();
+        form.reset({
+          saleType: "normal",
+          paymentMode: "Cash",
+          amount: 0,
+          clientName: "",
+          clientPhone: "",
+        });
       },
       onError: (e: unknown) => {
         const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
-        toast.error(msg || "Erreur lors de l'enregistrement");
+        toast.error(msg || "Erreur lors de l'enregistrement de la vente");
       },
     });
   };
@@ -92,7 +119,10 @@ export default function Ventes() {
           <Button variant="outline" onClick={() => window.open('/api/exports/sales', '_blank')} className="w-full sm:w-auto">
             <Download className="mr-2 h-4 w-4" /> Exporter
           </Button>
-          <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+          <Dialog open={isAddOpen} onOpenChange={(open) => {
+            setIsAddOpen(open);
+            if (!open) form.reset({ saleType: "normal", paymentMode: "Cash", amount: 0, clientName: "", clientPhone: "" });
+          }}>
             <DialogTrigger asChild>
               <Button className="w-full sm:w-auto"><Plus className="mr-2 h-4 w-4" /> Nouvelle Vente</Button>
             </DialogTrigger>
@@ -101,27 +131,36 @@ export default function Ventes() {
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
 
-                  <FormField control={form.control} name="productId" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Produit vendu</FormLabel>
-                      <Select onValueChange={(val) => {
-                        field.onChange(Number(val));
-                        const p = enStockProducts.find(x => x.id === Number(val));
-                        if (p?.sellingPrice) form.setValue("amount", p.sellingPrice);
-                      }}>
-                        <FormControl>
-                          <SelectTrigger><SelectValue placeholder="Sélectionner un produit en stock" /></SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {enStockProducts.map(p => (
-                            <SelectItem key={p.id} value={p.id.toString()}>
-                              {p.productId} — {p.product}{p.brand ? ` ${p.brand}` : ""}{p.capacity ? ` ${p.capacity}` : ""} — {formatFCFA(p.sellingPrice)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </FormItem>
-                  )} />
+                  <FormField
+                    control={form.control}
+                    name="productId"
+                    rules={{ required: "Veuillez sélectionner un produit" }}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Produit vendu *</FormLabel>
+                        <Select
+                          onValueChange={(val) => {
+                            field.onChange(Number(val));
+                            const p = enStockProducts.find(x => x.id === Number(val));
+                            if (p?.sellingPrice) form.setValue("amount", p.sellingPrice);
+                          }}
+                          value={field.value?.toString() ?? ""}
+                        >
+                          <FormControl>
+                            <SelectTrigger><SelectValue placeholder="Sélectionner un produit en stock" /></SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {enStockProducts.map(p => (
+                              <SelectItem key={p.id} value={p.id.toString()}>
+                                {p.productId} — {p.product}{p.brand ? ` ${p.brand}` : ""}{p.capacity ? ` ${p.capacity}` : ""} — {formatFCFA(p.sellingPrice)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
                   {selectedProductData && (
                     <div className="text-xs text-muted-foreground bg-muted/30 rounded px-3 py-2 border border-border">
@@ -140,6 +179,7 @@ export default function Ventes() {
                             <SelectItem value="troc">Troc</SelectItem>
                           </SelectContent>
                         </Select>
+                        <FormMessage />
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="paymentMode" render={({ field }) => (
@@ -153,17 +193,34 @@ export default function Ventes() {
                             <SelectItem value="Cash">Cash</SelectItem>
                           </SelectContent>
                         </Select>
+                        <FormMessage />
                       </FormItem>
                     )} />
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
-                    <FormField control={form.control} name="amount" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Montant final</FormLabel>
-                        <FormControl><Input type="number" {...field} onChange={e => field.onChange(Number(e.target.value))} required /></FormControl>
-                      </FormItem>
-                    )} />
+                    <FormField
+                      control={form.control}
+                      name="amount"
+                      rules={{
+                        required: "Le montant est obligatoire",
+                        min: { value: 1, message: "Le montant doit être supérieur à 0" },
+                      }}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Montant final *</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min={0}
+                              {...field}
+                              onChange={e => field.onChange(Number(e.target.value))}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                     {sellers.length > 0 && (
                       <FormField control={form.control} name="vendorId" render={({ field }) => (
                         <FormItem>
@@ -180,6 +237,7 @@ export default function Ventes() {
                               {sellers.map(s => <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>)}
                             </SelectContent>
                           </Select>
+                          <FormMessage />
                         </FormItem>
                       )} />
                     )}
@@ -187,10 +245,18 @@ export default function Ventes() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <FormField control={form.control} name="clientName" render={({ field }) => (
-                      <FormItem><FormLabel>Nom du client (Optionnel)</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
+                      <FormItem>
+                        <FormLabel>Nom du client (Optionnel)</FormLabel>
+                        <FormControl><Input {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
                     )} />
                     <FormField control={form.control} name="clientPhone" render={({ field }) => (
-                      <FormItem><FormLabel>Téléphone (Optionnel)</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
+                      <FormItem>
+                        <FormLabel>Téléphone (Optionnel)</FormLabel>
+                        <FormControl><Input {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
                     )} />
                   </div>
 
@@ -198,18 +264,87 @@ export default function Ventes() {
                     <div className="border border-primary/30 bg-primary/5 p-4 rounded-lg space-y-4">
                       <h4 className="font-semibold text-primary">Appareil reçu en Troc</h4>
                       <div className="grid grid-cols-2 gap-4">
-                        <FormField control={form.control} name="trocProduct" render={({ field }) => (
-                          <FormItem><FormLabel>Produit</FormLabel><FormControl><Input {...field} required={watchSaleType === "troc"} /></FormControl></FormItem>
-                        )} />
-                        <FormField control={form.control} name="trocBrand" render={({ field }) => (
-                          <FormItem><FormLabel>Marque</FormLabel><FormControl><Input {...field} required={watchSaleType === "troc"} /></FormControl></FormItem>
-                        )} />
-                        <FormField control={form.control} name="trocImei" render={({ field }) => (
-                          <FormItem><FormLabel>IMEI</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
-                        )} />
-                        <FormField control={form.control} name="trocCapacity" render={({ field }) => (
-                          <FormItem><FormLabel>Capacité</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
-                        )} />
+                        <FormField
+                          control={form.control}
+                          name="trocProduct"
+                          rules={{ required: watchSaleType === "troc" ? "Le nom de l'appareil est obligatoire" : false }}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Nom de l'appareil *</FormLabel>
+                              <FormControl><Input {...field} placeholder="Ex: iPhone 12" /></FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="trocBrand"
+                          rules={{ required: watchSaleType === "troc" ? "La marque est obligatoire" : false }}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Marque *</FormLabel>
+                              <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                                <FormControl>
+                                  <SelectTrigger><SelectValue placeholder="Choisir..." /></SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {BRANDS.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="trocImei"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>IMEI (Optionnel)</FormLabel>
+                              <FormControl><Input {...field} placeholder="15 chiffres" /></FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="trocCapacity"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Capacité (Optionnel)</FormLabel>
+                              <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                                <FormControl>
+                                  <SelectTrigger><SelectValue placeholder="Choisir..." /></SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {CAPACITIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name={"trocColor" as keyof SaleInput}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Couleur (Optionnel)</FormLabel>
+                              <Select
+                                onValueChange={field.onChange}
+                                value={(field.value as string) ?? ""}
+                              >
+                                <FormControl>
+                                  <SelectTrigger><SelectValue placeholder="Choisir..." /></SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {COLORS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
                       </div>
                     </div>
                   )}

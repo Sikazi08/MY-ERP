@@ -19,15 +19,27 @@ export default function Login() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!username.trim()) {
+      toast.error("Veuillez saisir votre nom d'utilisateur.");
+      return;
+    }
+    if (!password) {
+      toast.error("Veuillez saisir votre mot de passe.");
+      return;
+    }
     loginMutation.mutate(
-      { data: { username, password } },
+      { data: { username: username.trim(), password } },
       {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
-          setLocation("/");
+          queryClient
+            .refetchQueries({ queryKey: getGetMeQueryKey() })
+            .then(() => {
+              setLocation("/");
+            });
         },
-        onError: () => {
-          toast.error("Échec de la connexion. Vérifiez vos identifiants.");
+        onError: (e: unknown) => {
+          const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
+          toast.error(msg || "Identifiants incorrects. Vérifiez votre nom d'utilisateur et mot de passe.");
         },
       }
     );
@@ -57,7 +69,8 @@ export default function Login() {
                 placeholder="Ex: admin"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                required
+                autoComplete="username"
+                disabled={loginMutation.isPending}
                 className="bg-background"
               />
             </div>
@@ -68,7 +81,8 @@ export default function Login() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                required
+                autoComplete="current-password"
+                disabled={loginMutation.isPending}
                 className="bg-background"
               />
             </div>
@@ -80,7 +94,7 @@ export default function Login() {
               {loginMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Connexion...
+                  Connexion en cours...
                 </>
               ) : (
                 "Se connecter"

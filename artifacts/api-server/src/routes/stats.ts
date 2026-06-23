@@ -6,33 +6,20 @@ import { requireAuth, requireAdmin } from "../middlewares/auth";
 const router = Router();
 
 function todayStr() { return new Date().toISOString().split("T")[0]; }
-
-function daysAgo(n: number) {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.toISOString().split("T")[0];
-}
-
-function monthStart() {
-  const d = new Date();
-  d.setDate(1);
-  return d.toISOString().split("T")[0];
-}
-
-function weekStart() {
-  const d = new Date();
-  d.setDate(d.getDate() - 6);
-  return d.toISOString().split("T")[0];
-}
+function monthStart() { const d = new Date(); d.setDate(1); return d.toISOString().split("T")[0]; }
+function weekStart() { const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().split("T")[0]; }
 
 router.get("/dashboard", requireAuth, async (req, res): Promise<void> => {
   const today = todayStr();
   const isAdmin = req.session!.role === "admin";
 
   const [stockCounts] = await db.select({
-    en_stock: sql<number>`count(*) filter (where ${productsTable.status} = 'en_stock')::int`,
-    chez_partenaire: sql<number>`count(*) filter (where ${productsTable.status} = 'chez_partenaire')::int`,
-    vendu: sql<number>`count(*) filter (where ${productsTable.status} = 'vendu')::int`,
+    phones_in_stock: sql<number>`count(*) filter (where ${productsTable.status} = 'en_stock' and ${productsTable.product_type} = 'téléphone')::int`,
+    phones_at_partner: sql<number>`count(*) filter (where ${productsTable.status} = 'chez_partenaire' and ${productsTable.product_type} = 'téléphone')::int`,
+    phones_sold: sql<number>`count(*) filter (where ${productsTable.status} = 'vendu' and ${productsTable.product_type} = 'téléphone')::int`,
+    acc_in_stock: sql<number>`count(*) filter (where ${productsTable.status} = 'en_stock' and ${productsTable.product_type} = 'accessoire')::int`,
+    acc_at_partner: sql<number>`count(*) filter (where ${productsTable.status} = 'chez_partenaire' and ${productsTable.product_type} = 'accessoire')::int`,
+    acc_sold: sql<number>`count(*) filter (where ${productsTable.status} = 'vendu' and ${productsTable.product_type} = 'accessoire')::int`,
   }).from(productsTable);
 
   const todaySales = await db.select().from(salesTable).where(
@@ -45,17 +32,33 @@ router.get("/dashboard", requireAuth, async (req, res): Promise<void> => {
   const revenuToday = todaySales.reduce((sum, s) => sum + Number(s.amount), 0);
   const expensesToday = Number(todayExpenses[0]?.total ?? 0);
 
-  const lowStock = await db.select().from(productsTable).where(eq(productsTable.status, "en_stock")).limit(5);
+  // Low stock: only accessories with quantity <= 3
+  const lowStockAcc = await db.select().from(productsTable)
+    .where(and(eq(productsTable.status, "en_stock"), eq(productsTable.productType, "accessoire"), sql`${productsTable.quantity} <= 3`))
+    .limit(10);
 
   const result: Record<string, unknown> = {
-    productsInStock: stockCounts.en_stock ?? 0,
-    productsAtPartner: stockCounts.chez_partenaire ?? 0,
-    productsSold: stockCounts.vendu ?? 0,
+    // Legacy keys (keep for backward compat)
+    productsInStock: stockCounts.phones_in_stock ?? 0,
+    productsAtPartner: (stockCounts.phones_at_partner ?? 0) + (stockCounts.acc_at_partner ?? 0),
+    productsSold: (stockCounts.phones_sold ?? 0) + (stockCounts.acc_sold ?? 0),
+    // New phone/accessory splits
+    phonesInStock: stockCounts.phones_in_stock ?? 0,
+    phonesAtPartner: stockCounts.phones_at_partner ?? 0,
+    phonesSold: stockCounts.phones_sold ?? 0,
+    accessoriesInStock: stockCounts.acc_in_stock ?? 0,
+    accessoriesAtPartner: stockCounts.acc_at_partner ?? 0,
+    accessoriesSold: stockCounts.acc_sold ?? 0,
     salesToday: todaySales.length,
     expensesToday,
     revenuToday,
     cashBalanceToday: revenuToday - expensesToday,
-    lowStockProducts: lowStock.map(p => ({ ...p, purchasePrice: undefined, sellingPrice: p.sellingPrice !== null ? Number(p.sellingPrice) : null })),
+    lowStockProducts: lowStockAcc.map(p => ({
+      ...p,
+      purchasePrice: undefined,
+      sellingPrice: p.sellingPrice !== null ? Number(p.sellingPrice) : null,
+      quantity: p.quantity,
+    })),
   };
 
   if (isAdmin) {
@@ -103,7 +106,6 @@ router.get("/financial", requireAdmin, async (req, res): Promise<void> => {
   const productMap = new Map(products.map(p => [p.id, p]));
 
   const byDay: Map<string, { revenue: number; expenses: number; profit: number }> = new Map();
-
   for (const s of sales) {
     const d = byDay.get(s.saleDate) ?? { revenue: 0, expenses: 0, profit: 0 };
     d.revenue += Number(s.amount);
@@ -131,19 +133,31 @@ router.get("/financial", requireAdmin, async (req, res): Promise<void> => {
 
 router.get("/top-products", requireAdmin, async (req, res): Promise<void> => {
   const limit = parseInt((req.query.limit as string) || "10");
+  const productType = (req.query.productType as string) || undefined;
+
   const rows = await db.select({
     product: productsTable.product,
     brand: productsTable.brand,
-    count: sql<number>`count(*)::int`,
+    productType: productsTable.productType,
+    count: sql<number>`count(${salesTable.id})::int`,
     revenue: sql<number>`sum(${salesTable.amount}::numeric)`,
   }).from(salesTable)
     .leftJoin(productsTable, eq(salesTable.productId, productsTable.id))
-    .where(eq(salesTable.cancelled, false))
-    .groupBy(productsTable.product, productsTable.brand)
-    .orderBy(sql`count(*) desc`)
+    .where(and(
+      eq(salesTable.cancelled, false),
+      productType ? eq(productsTable.productType, productType) : sql`true`,
+    ))
+    .groupBy(productsTable.product, productsTable.brand, productsTable.productType)
+    .orderBy(sql`count(${salesTable.id}) desc`)
     .limit(limit);
 
-  res.json(rows.map(r => ({ product: r.product ?? "", brand: r.brand ?? "", count: r.count, revenue: Number(r.revenue ?? 0) })));
+  res.json(rows.map(r => ({
+    product: r.product ?? "",
+    brand: r.brand ?? "",
+    productType: r.productType ?? "téléphone",
+    count: r.count,
+    revenue: Number(r.revenue ?? 0),
+  })));
 });
 
 router.get("/payment-breakdown", requireAdmin, async (req, res): Promise<void> => {
@@ -170,7 +184,6 @@ router.get("/payment-breakdown", requireAdmin, async (req, res): Promise<void> =
 
 router.get("/top-sellers", requireAdmin, async (req, res): Promise<void> => {
   const limit = parseInt((req.query.limit as string) || "3");
-
   const rows = await db.select({
     vendorName: salesTable.vendorName,
     salesCount: sql<number>`count(*)::int`,

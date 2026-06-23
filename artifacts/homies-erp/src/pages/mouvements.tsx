@@ -1,17 +1,23 @@
 import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useListMovements, getListMovementsQueryKey } from "@workspace/api-client-react";
-import { formatFCFA, formatDateFr } from "@/lib/format";
+import { formatDateFr } from "@/lib/format";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Download, Search } from "lucide-react";
+import { Loader2, Download, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 export default function Mouvements() {
   const { isAdmin } = useAuth();
   const [search, setSearch] = useState("");
-  const { data: movements = [], isLoading } = useListMovements({ search: search || undefined }, { query: { queryKey: getListMovementsQueryKey({ search: search || undefined }) } });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const { data: allMovements = [], isLoading } = useListMovements({ search: search || undefined }, { query: { queryKey: getListMovementsQueryKey({ search: search || undefined }) } });
+  const total = allMovements.length;
+  const totalPages = Math.ceil(total / pageSize);
+  const movements = allMovements.slice((page - 1) * pageSize, page * pageSize);
 
   const getMovementTypeBadge = (type: string) => {
     switch (type) {
@@ -85,6 +91,25 @@ export default function Mouvements() {
           </TableBody>
         </Table>
       </div>
+
+      {total > 0 && (
+        <div className="flex items-center justify-between px-2">
+          <div className="flex items-center gap-3">
+            <p className="text-sm text-muted-foreground">{total} mouvement{total !== 1 ? "s" : ""} · page {page}/{totalPages}</p>
+            <Select value={String(pageSize)} onValueChange={v => { setPageSize(Number(v)); setPage(1); }}>
+              <SelectTrigger className="w-24 h-8 text-xs bg-background"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="25">25 / page</SelectItem>
+                <SelectItem value="50">50 / page</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}><ChevronLeft className="h-4 w-4" /></Button>
+            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}><ChevronRight className="h-4 w-4" /></Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -26,6 +26,7 @@ export const salesTable = pgTable("sales", {
   cancelled: boolean("cancelled").notNull().default(false),
   cancellationReason: text("cancellation_reason"),
   trocProductId: integer("troc_product_id").references(() => productsTable.id),
+  quantitySold: integer("quantity_sold").notNull().default(1),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -1,0 +1,39 @@
+
+
+Je veux créer 2 groupes de produits (téléphone , appareils/accessoires) 
+
+Dans l’ajout de stocks dans les statut enlève le statut vendu. Laisse juste en stock et chez partenaire 
+
+Je veux ajouter une colonne quantité au stocks pour que lorsqu’on ajoute un appareil/ accessoires ça écrit la quantité dans sa colonne. Je ne veux pas que ça duplique les produits. 
+
+Lorsque c’est un téléphone: les champs reste sans changement avec la quantité par défaut 1 non modifiable 
+Lorsque je choisi Appareils/Accesoires : les champs change et ça deviens : nom du produits, marque(Optionnel), quantité(obligatoire), fournisseur, date d’entrée, statut, prix de vente
+
+Dans les stock et les vente ajoute un autre filtre: ( Téléphone et appareils/ accessoires ) et en
+
+Dans l’historique des ventes ajoute un filtre ( téléphone et Appareil/Accessoire) 
+
+Les appareils/ accessoires ne peuvent pas être troqué donc quand je choisi appareils/ accessoires l’option type de vente est uniquement vente normale. 
+
+Dans les stocks, dépense, ventes, partenaires et mouvements en bas tu met page précédente - suivante, 25, 50 par page. 
+
+Dans la partie historique des ventes permettre qu’on clique sur une vente et qu’on puisse voir les détails voir et télécharger la facture du téléphone entrée en stock. 
+
+À l’ajout d’un téléphone ajoute une colonne méthode d’entrée. Soit c’est en achtat soit c’est entrer en troc
+Lors qu’un téléphone s’ajoute au stock et qu’il vient d’un troc, on peut voir les détails voir et télécharger la facture du téléphone vu qu’il vient d’un troc. 
+
+Dans la partie admin, permettre l’importation des stock. 
+ 
+Lorsqu’on ajoute une nouvelle vente permettre une recherche rapide des caractère du produit désirée dans la sélection du produit puis sélectionne ce qui convient dans la liste. Fais aussi que la liste ai une barre de défilement verticale. 
+
+Fais aussi en sorte que lors de la vente lorsque je tape le nom du client s’il existe déjà ca propose dans une liste et  quand je sélectionne son numéro de téléphone se remplit automatiquement. Vice versa avec le numéro de téléphone.
+
+Lors du troc pour l’option le client a remis sa facture(optionnel). Si c’est oui on a la possibilité d’importer sa facture. Si non on a la possibilité d’importer sa déclaration sur l’honneur et sa CNI.  Lorsque ce téléphone reçu en troc apparaîtra dans le stock lorsqu’on clique on pourra voir, modifier ou télécharger les pièces jointes (admin et secrétaire). Donc on peut d’abord vendre et ajouté les pièces jointes après. 
+
+Lorsqu’on vends un appareil/accessoires il faut préciser la quantité. 
+
+Pour les seuils d’alerte ça doit être uniquement sur le grips de produit appareil/ accessoires 
+
+Dans les statistiques on doit avoir le top 10 des téléphones les plus vendu avec le nombre de vente et le top 10 des appareils/accessoires les plus vendu le nombre de ventes. 
+
+Réorganise les tableau de bord avec téléphone chez partenaires, total téléphone vendu, appareil/accessoires chez partenaire , total appareil/accessoires vendu. Met uniquement le Stock de téléphone actuel

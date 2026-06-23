@@ -27,6 +27,9 @@ function mapProduct(p: typeof productsTable.$inferSelect, isAdmin: boolean, part
       ? Number(p.sellingPrice) - Number(p.purchasePrice)
       : null,
     partnerName: partnerName || null,
+    productType: p.productType || "téléphone",
+    quantity: p.quantity ?? 1,
+    entryMethod: p.entryMethod || "achat",
   };
 }
 
@@ -53,9 +56,10 @@ async function getPartnerNames(rows: typeof productsTable.$inferSelect[]): Promi
 }
 
 router.get("/", requireAuth, async (req, res): Promise<void> => {
-  const { status, search, dateFrom, dateTo, page, limit } = req.query as Record<string, string>;
+  const { status, search, dateFrom, dateTo, page, limit, productType } = req.query as Record<string, string>;
   const conditions = [];
   if (status && status !== "tous") conditions.push(eq(productsTable.status, status as "en_stock" | "chez_partenaire" | "vendu"));
+  if (productType && productType !== "tous") conditions.push(eq(productsTable.productType, productType));
   if (dateFrom) conditions.push(gte(productsTable.entryDate, dateFrom));
   if (dateTo) conditions.push(lte(productsTable.entryDate, dateTo));
   if (search) {
@@ -77,7 +81,7 @@ router.get("/", requireAuth, async (req, res): Promise<void> => {
   const partnerNames = await getPartnerNames(rows);
 
   const pageNum = parseInt(page || "1");
-  const limitNum = parseInt(limit || "100");
+  const limitNum = parseInt(limit || "25");
   const total = rows.length;
   const paginated = rows.slice((pageNum - 1) * limitNum, pageNum * limitNum);
 
@@ -90,13 +94,19 @@ router.get("/", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.post("/", requireAuth, async (req, res): Promise<void> => {
-  const { imei, product, brand, capacity, color, supplier, purchasePrice, sellingPrice, status, entryDate } = req.body;
+  const {
+    imei, product, brand, capacity, color, supplier,
+    purchasePrice, sellingPrice, status, entryDate,
+    productType = "téléphone", quantity = 1, entryMethod = "achat"
+  } = req.body;
+
   if (!product || !entryDate) {
     res.status(400).json({ error: "Nom du produit et date d'entrée sont requis" });
     return;
   }
 
-  if (imei) {
+  // For phones: check IMEI uniqueness
+  if (productType === "téléphone" && imei) {
     const [existing] = await db.select({ id: productsTable.id }).from(productsTable).where(eq(productsTable.imei, imei)).limit(1);
     if (existing) {
       res.status(409).json({ error: `Un produit avec l'IMEI ${imei} existe déjà dans le système` });
@@ -106,18 +116,26 @@ router.post("/", requireAuth, async (req, res): Promise<void> => {
 
   const isAdmin = req.session!.role === "admin";
   const productId = await generateProductId();
+
+  // For accessories: single product with quantity
+  // For phones: one product, quantity always 1
+  const finalQuantity = productType === "téléphone" ? 1 : Math.max(1, parseInt(String(quantity)) || 1);
+
   const [row] = await db.insert(productsTable).values({
     productId,
-    imei: imei || null,
+    imei: productType === "téléphone" ? (imei || null) : null,
     product,
     brand: brand || null,
-    capacity: capacity || null,
-    color: color || null,
+    capacity: productType === "téléphone" ? (capacity || null) : null,
+    color: productType === "téléphone" ? (color || null) : null,
     supplier: supplier || null,
     purchasePrice: isAdmin && purchasePrice !== undefined && purchasePrice !== "" ? String(purchasePrice) : null,
     sellingPrice: sellingPrice !== undefined && sellingPrice !== "" ? String(sellingPrice) : null,
     status: status || "en_stock",
     entryDate,
+    productType,
+    quantity: finalQuantity,
+    entryMethod: productType === "téléphone" ? (entryMethod || "achat") : null,
     createdByUserId: req.session!.userId!,
   }).returning();
 
@@ -129,7 +147,7 @@ router.post("/", requireAuth, async (req, res): Promise<void> => {
     productId: row.id,
     productRef: row.productId,
     imei: row.imei,
-    description: `Ajout produit: ${product}${brand ? " " + brand : ""} (${productId})`,
+    description: `Ajout ${productType === "accessoire" ? "accessoire" : "téléphone"}: ${product}${brand ? " " + brand : ""} (${productId})${finalQuantity > 1 ? ` — Qté: ${finalQuantity}` : ""}`,
   });
 
   res.status(201).json(mapProduct(row, isAdmin));
@@ -157,7 +175,7 @@ router.patch("/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const { imei, product, brand, capacity, color, supplier, purchasePrice, sellingPrice, status, entryDate } = req.body;
+  const { imei, product, brand, capacity, color, supplier, purchasePrice, sellingPrice, status, entryDate, quantity, entryMethod } = req.body;
 
   if (!isAdmin && purchasePrice !== undefined) {
     res.status(403).json({ error: "Seul l'admin peut modifier le prix d'achat" });
@@ -184,6 +202,8 @@ router.patch("/:id", requireAuth, async (req, res): Promise<void> => {
   if (sellingPrice !== undefined) updates.sellingPrice = sellingPrice !== "" ? String(sellingPrice) : null;
   if (status) updates.status = status;
   if (entryDate) updates.entryDate = entryDate;
+  if (quantity !== undefined && existing.productType === "accessoire") updates.quantity = parseInt(String(quantity)) || 1;
+  if (entryMethod !== undefined) updates.entryMethod = entryMethod || null;
 
   const [row] = await db.update(productsTable).set(updates).where(eq(productsTable.id, id)).returning();
 

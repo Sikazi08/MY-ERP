@@ -20,6 +20,9 @@ export const productsTable = pgTable("products", {
   saleDate: date("sale_date", { mode: "string" }),
   createdByUserId: integer("created_by_user_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  productType: text("product_type").notNull().default("téléphone"),
+  quantity: integer("quantity").notNull().default(1),
+  entryMethod: text("entry_method").default("achat"),
 });
 
 export const insertProductSchema = createInsertSchema(productsTable).omit({ id: true, createdAt: true });

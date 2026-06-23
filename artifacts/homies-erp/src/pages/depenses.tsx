@@ -6,10 +6,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import { formatFCFA, formatDateFr } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2, Plus, Download, Trash2 } from "lucide-react";
+import { Loader2, Plus, Download, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
 import { format } from "date-fns";
@@ -18,8 +19,13 @@ export default function Depenses() {
   const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
-  const { data: expenses = [], isLoading } = useListExpenses({}, { query: { queryKey: getListExpensesQueryKey() } });
+  const { data: allExpenses = [], isLoading } = useListExpenses({}, { query: { queryKey: getListExpensesQueryKey() } });
+  const total = allExpenses.length;
+  const totalPages = Math.ceil(total / pageSize);
+  const expenses = allExpenses.slice((page - 1) * pageSize, page * pageSize);
 
   const createMutation = useCreateExpense();
   const deleteMutation = useDeleteExpense();
@@ -143,6 +149,25 @@ export default function Depenses() {
           </TableBody>
         </Table>
       </div>
+
+      {total > 0 && (
+        <div className="flex items-center justify-between px-2">
+          <div className="flex items-center gap-3">
+            <p className="text-sm text-muted-foreground">{total} dépense{total !== 1 ? "s" : ""} · page {page}/{totalPages}</p>
+            <Select value={String(pageSize)} onValueChange={v => { setPageSize(Number(v)); setPage(1); }}>
+              <SelectTrigger className="w-24 h-8 text-xs bg-background"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="25">25 / page</SelectItem>
+                <SelectItem value="50">50 / page</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}><ChevronLeft className="h-4 w-4" /></Button>
+            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}><ChevronRight className="h-4 w-4" /></Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

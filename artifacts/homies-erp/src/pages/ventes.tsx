@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { Loader2, Plus, Search, Download, Ban, Upload, FileText, ChevronLeft, ChevronRight, Smartphone, Package, Eye, Printer, Paperclip } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { ProductSearchCombobox } from "@/components/product-combobox";
 
 const BRANDS = ["Apple", "Samsung", "Xiaomi", "Tecno", "Infinix", "itel", "Huawei", "Oppo", "Vivo", "Realme", "Nokia", "Autre"];
 const CAPACITIES = ["16 Go", "32 Go", "64 Go", "128 Go", "256 Go", "512 Go", "1 To"];
@@ -48,88 +49,6 @@ function useClientAutocomplete() {
   }, []);
 
   return { suggestions, loading, search, clear: () => setSuggestions([]) };
-}
-
-function ProductSearchCombobox({
-  products,
-  selectedId,
-  onSelect,
-}: {
-  products: any[];
-  selectedId?: number;
-  onSelect: (p: any) => void;
-}) {
-  const [query, setQuery] = useState("");
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const selected = products.find(p => p.id === selectedId);
-
-  const filtered = products.filter(p => {
-    if (!query) return true;
-    const q = query.toLowerCase();
-    return (
-      p.product?.toLowerCase().includes(q) ||
-      p.brand?.toLowerCase().includes(q) ||
-      p.productId?.toLowerCase().includes(q) ||
-      p.imei?.toLowerCase().includes(q)
-    );
-  });
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  return (
-    <div ref={ref} className="relative">
-      <div className="relative">
-        <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground pointer-events-none" />
-        <Input
-          className="pl-9"
-          placeholder={selected ? `${selected.productId} — ${selected.product} ${selected.brand || ""}`.trim() : "Chercher un produit (ID, nom, IMEI...)"}
-          value={query}
-          onChange={e => { setQuery(e.target.value); setOpen(true); }}
-          onFocus={() => setOpen(true)}
-        />
-        {selected && !query && (
-          <button className="absolute right-2 top-2.5 text-muted-foreground hover:text-foreground text-xs"
-            onClick={() => { onSelect(null); setQuery(""); }}>✕</button>
-        )}
-      </div>
-      {open && (
-        <div className="absolute z-50 w-full mt-1 max-h-60 overflow-y-auto rounded-md border border-border bg-card shadow-xl">
-          {filtered.length === 0 ? (
-            <div className="px-3 py-3 text-sm text-muted-foreground text-center">Aucun produit trouvé</div>
-          ) : (
-            filtered.map(p => {
-              const isPhone = !p.productType || p.productType === "téléphone";
-              return (
-                <div key={p.id}
-                  className="px-3 py-2.5 cursor-pointer hover:bg-muted/60 transition-colors border-b border-border/30 last:border-0"
-                  onMouseDown={(e) => { e.preventDefault(); onSelect(p); setQuery(""); setOpen(false); }}>
-                  <div className="flex items-center gap-2">
-                    {isPhone ? <Smartphone className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> : <Package className="h-3.5 w-3.5 text-blue-400 shrink-0" />}
-                    <span className="font-mono text-xs text-muted-foreground">{p.productId}</span>
-                    <span className="font-medium text-sm">{p.product}</span>
-                    {p.brand && <span className="text-muted-foreground text-xs">{p.brand}</span>}
-                    {!isPhone && p.quantity > 0 && <Badge variant="outline" className="text-[10px] ml-auto">Qté: {p.quantity}</Badge>}
-                    {p.status === "chez_partenaire" && <Badge className="text-[10px] bg-blue-500/10 text-blue-400 border-blue-400/30 ml-auto">🤝 Partenaire</Badge>}
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5 pl-5">
-                    <span className="text-primary font-semibold text-xs">{formatFCFA(p.sellingPrice)}</span>
-                    {p.imei && <span className="text-muted-foreground text-xs font-mono">IMEI: {p.imei}</span>}
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      )}
-    </div>
-  );
 }
 
 export default function Ventes() {
@@ -359,6 +278,24 @@ export default function Ventes() {
                       )} />
                     )}
                   </div>
+
+                  {isAccessoire && (
+                    <FormField control={form.control} name="vendorId" render={({ field }) => (
+                      <FormItem><FormLabel>Vendeur externe (Optionnel)</FormLabel>
+                        <Select onValueChange={(val) => {
+                          const id = Number(val);
+                          field.onChange(id || undefined);
+                          if (id) { const s = sellers.find(x => x.id === id); if (s) form.setValue("vendorName", s.name); }
+                          else { form.setValue("vendorName", undefined as any); }
+                        }} value={field.value?.toString() ?? ""}>
+                          <FormControl><SelectTrigger><SelectValue placeholder="Aucun" /></SelectTrigger></FormControl>
+                          <SelectContent>
+                            <SelectItem value="0">Aucun</SelectItem>
+                            {sellers.map(s => <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select><FormMessage /></FormItem>
+                    )} />
+                  )}
 
                   {selectedProductData?.status === "chez_partenaire" && selectedProductData?.partnerName && (
                     <div className="text-xs bg-blue-500/10 text-blue-400 border border-blue-500/30 rounded px-3 py-2">

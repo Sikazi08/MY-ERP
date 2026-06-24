@@ -15,6 +15,7 @@ import { useForm } from "react-hook-form";
 import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
+import { ProductSearchCombobox } from "@/components/product-combobox";
 
 export default function Partenaires() {
   const queryClient = useQueryClient();
@@ -94,10 +95,13 @@ export default function Partenaires() {
                     )} />
                     <FormField control={sendForm.control} name="productId" render={({ field }) => (
                       <FormItem><FormLabel>Produit en stock</FormLabel>
-                        <Select onValueChange={(val) => field.onChange(Number(val))}>
-                          <FormControl><SelectTrigger><SelectValue placeholder="Sélectionner" /></SelectTrigger></FormControl>
-                          <SelectContent>{enStockProducts.map(p => <SelectItem key={p.id} value={p.id.toString()}>{p.productId} - {p.product}</SelectItem>)}</SelectContent>
-                        </Select></FormItem>
+                        <FormControl>
+                          <ProductSearchCombobox
+                            products={enStockProducts as any[]}
+                            selectedId={field.value as number}
+                            onSelect={(p) => field.onChange(p ? p.id : undefined)}
+                          />
+                        </FormControl></FormItem>
                     )} />
                     <FormField control={sendForm.control} name="movementDate" render={({ field }) => (
                       <FormItem><FormLabel>Date d'envoi</FormLabel><FormControl><Input type="date" {...field} required /></FormControl></FormItem>

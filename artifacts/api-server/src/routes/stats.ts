@@ -32,9 +32,9 @@ router.get("/dashboard", requireAuth, async (req, res): Promise<void> => {
   const revenuToday = todaySales.reduce((sum, s) => sum + Number(s.amount), 0);
   const expensesToday = Number(todayExpenses[0]?.total ?? 0);
 
-  // Low stock: only accessories with quantity <= 3
+  // Low stock: only accessories with quantity <= 1
   const lowStockAcc = await db.select().from(productsTable)
-    .where(and(eq(productsTable.status, "en_stock"), eq(productsTable.productType, "accessoire"), sql`${productsTable.quantity} <= 3`))
+    .where(and(eq(productsTable.status, "en_stock"), eq(productsTable.productType, "accessoire"), sql`${productsTable.quantity} <= 1`))
     .limit(10);
 
   const result: Record<string, unknown> = {

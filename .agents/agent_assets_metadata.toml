@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "x9AttsYOZXjauSS8aY9pW"
+uri = "file://homies-erp.tar.gz"
+type = "unspecified"
+title = "THE HOMIES ERP — Code source"

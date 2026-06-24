@@ -1,3 +1,4 @@
 - [Drizzle sql() column refs](drizzle-sql-template.md) — use camelCase property (e.g. `productsTable.productType`) not snake_case inside sql`` templates or the reference renders as empty.
 - [Troc attachments flow](troc-attachments.md) — base64 in DB (troc_attachments table); upload after sale creation using trocProductId from onSuccess response; view/download in stock detail sheet.
 - [ERP stack conventions](erp-stack.md) — pnpm monorepo, api-server on 8080, homies-erp Vite on dynamic PORT; do NOT use Orval hooks for new endpoints, use useQuery/fetch directly.
+- [Supabase FK drift](supabase-fk-drift.md) — primary DB is external Supabase (dev+prod same); Drizzle `.references()` changes are NOT auto-migrated, fix FKs with manual ALTER TABLE.

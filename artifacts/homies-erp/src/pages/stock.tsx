@@ -306,8 +306,9 @@ export default function Stock() {
 
   const onSubmit = async (data: ProductFormData) => {
     createMutation.mutate({ data: { ...data, productType: addProductType } as ProductInput }, {
-      onSuccess: () => {
-        toast.success("Produit ajouté avec succès");
+      onSuccess: (res) => {
+        // Offline: the shared client already showed a "saved offline" toast.
+        if (!(res as { _offline?: boolean } | null)?._offline) toast.success("Produit ajouté avec succès");
         queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
         setIsAddOpen(false);
         resetAddForm("téléphone");
@@ -344,8 +345,8 @@ export default function Stock() {
   const onEditSubmit = (data: ProductFormData) => {
     if (!selectedProduct) return;
     updateMutation.mutate({ id: selectedProduct.id, data: data as ProductInput }, {
-      onSuccess: () => {
-        toast.success("Produit modifié avec succès");
+      onSuccess: (res) => {
+        if (!(res as { _offline?: boolean } | null)?._offline) toast.success("Produit modifié avec succès");
         queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
         setIsEditOpen(false);
         setSelectedProduct(null);
@@ -676,7 +677,7 @@ export default function Stock() {
                       <Button variant="destructive" className="flex-1" onClick={() => {
                         if (confirm("Êtes-vous sûr de vouloir supprimer ce produit ?")) {
                           deleteMutation.mutate({ id: selectedProduct.id }, {
-                            onSuccess: () => { toast.success("Produit supprimé"); setSelectedProduct(null); queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() }); },
+                            onSuccess: (res) => { if (!(res as unknown as { _offline?: boolean } | null)?._offline) toast.success("Produit supprimé"); setSelectedProduct(null); queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() }); },
                             onError: (e: unknown) => { const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error; toast.error(msg || "Erreur lors de la suppression"); },
                           });
                         }

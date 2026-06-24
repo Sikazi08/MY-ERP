@@ -40,8 +40,11 @@ export default function Depenses() {
 
   const onSubmit = (data: ExpenseInput) => {
     createMutation.mutate({ data }, {
-      onSuccess: () => {
-        toast.success("Dépense enregistrée");
+      onSuccess: (res) => {
+        // When offline the shared client queues the request and resolves with
+        // `_offline`; it already showed a "saved offline" toast, so skip the
+        // success toast to avoid a contradictory message.
+        if (!(res as { _offline?: boolean } | null)?._offline) toast.success("Dépense enregistrée");
         queryClient.invalidateQueries({ queryKey: getListExpensesQueryKey() });
         setIsAddOpen(false);
         form.reset();

@@ -38,6 +38,13 @@ export default function Clients() {
     if (!file) return;
     importMutation.mutate({ data: { file } }, {
       onSuccess: (result) => {
+        // File uploads can't be replayed offline, but if the shared client ever
+        // queues this request it resolves with `_offline` and already showed a
+        // "saved offline" toast — skip the import-result toast in that case.
+        if ((result as unknown as { _offline?: boolean } | null)?._offline) {
+          if (fileInputRef.current) fileInputRef.current.value = "";
+          return;
+        }
         const msg = `${result.imported} importé(s)${result.duplicates > 0 ? `, ${result.duplicates} doublon(s) ignoré(s)` : ""}${result.errors > 0 ? `, ${result.errors} erreur(s)` : ""}`;
         toast.success(msg);
         queryClient.invalidateQueries({ queryKey: getListClientsQueryKey() });

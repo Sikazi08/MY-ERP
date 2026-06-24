@@ -50,6 +50,7 @@ export default function Login() {
     <div className="min-h-screen w-full flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md border-border bg-card shadow-2xl">
         <CardHeader className="space-y-4 pb-6 flex flex-col items-center">
+          <img src={logoImg} alt="The Homies" className="h-28 w-auto object-contain" />
           <p className="text-muted-foreground text-sm">
             Connectez-vous pour accéder à votre espace
           </p>

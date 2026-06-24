@@ -1,12 +1,8 @@
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
-import { QueryClient } from "@tanstack/react-query";
-import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
-import type { Persister } from "@tanstack/react-query-persist-client";
-import { get, set, del } from "idb-keyval";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
-import { OfflineProvider } from "@/lib/offline-context";
 import { Layout } from "@/components/layout";
 import { Loader2 } from "lucide-react";
 import { useEffect, ComponentType } from "react";
@@ -28,23 +24,9 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: false,
-      // Keep cached data long enough to survive offline reloads.
-      gcTime: 1000 * 60 * 60 * 24 * 7,
     },
   },
 });
-
-const idbPersister: Persister = {
-  persistClient: async (client) => {
-    await set("homies-rq-cache-v1", client);
-  },
-  restoreClient: async () => {
-    return await get("homies-rq-cache-v1");
-  },
-  removeClient: async () => {
-    await del("homies-rq-cache-v1");
-  },
-};
 
 function ProtectedRoute({ component: Component, adminOnly = false }: { component: ComponentType, adminOnly?: boolean }) {
   const { user, isLoading, isAdmin } = useAuth();
@@ -107,25 +89,16 @@ function Router() {
 
 function App() {
   return (
-    <PersistQueryClientProvider
-      client={queryClient}
-      persistOptions={{
-        persister: idbPersister,
-        maxAge: 1000 * 60 * 60 * 24 * 7,
-        buster: "v1",
-      }}
-    >
-      <OfflineProvider>
-        <TooltipProvider>
-          <AuthProvider>
-            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-              <Router />
-            </WouterRouter>
-          </AuthProvider>
-          <Toaster />
-        </TooltipProvider>
-      </OfflineProvider>
-    </PersistQueryClientProvider>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <AuthProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <Router />
+          </WouterRouter>
+        </AuthProvider>
+        <Toaster />
+      </TooltipProvider>
+    </QueryClientProvider>
   );
 }
 

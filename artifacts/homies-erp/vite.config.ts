@@ -3,7 +3,6 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
-import { VitePWA } from "vite-plugin-pwa";
 
 const rawPort = process.env.PORT;
 
@@ -27,46 +26,12 @@ if (!basePath) {
   );
 }
 
-const normalizedBase = basePath.endsWith("/") ? basePath : `${basePath}/`;
-
 export default defineConfig({
   base: basePath,
   plugins: [
     react(),
     tailwindcss(),
     runtimeErrorOverlay(),
-    VitePWA({
-      registerType: "autoUpdate",
-      injectRegister: "auto",
-      includeAssets: ["favicon.svg", "logo.png", "robots.txt"],
-      manifest: {
-        name: "THE HOMIES ERP",
-        short_name: "Homies ERP",
-        description: "Gestion de boutique — ventes, stock, partenaires.",
-        start_url: normalizedBase,
-        scope: normalizedBase,
-        display: "standalone",
-        background_color: "#0a0a0a",
-        theme_color: "#0a0a0a",
-        icons: [
-          {
-            src: "logo.png",
-            sizes: "512x512",
-            type: "image/png",
-            purpose: "any maskable",
-          },
-        ],
-      },
-      workbox: {
-        navigateFallback: `${normalizedBase}index.html`,
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
-        cleanupOutdatedCaches: true,
-      },
-      devOptions: {
-        enabled: false,
-      },
-    }),
     ...(process.env.NODE_ENV !== "production" &&
     process.env.REPL_ID !== undefined
       ? [

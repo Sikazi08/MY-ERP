@@ -19,7 +19,6 @@ import {
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
-import { OfflineBanner } from "@/components/offline-banner";
 const logoImg = `${import.meta.env.BASE_URL}logo.png`;
 
 const navItems = [
@@ -89,7 +88,6 @@ export function Layout({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex flex-1 flex-col">
-        <OfflineBanner />
         {/* Header */}
         <header className="flex h-16 items-center justify-between border-b border-border bg-card px-4 md:px-6">
           <div className="flex items-center gap-4 md:hidden">

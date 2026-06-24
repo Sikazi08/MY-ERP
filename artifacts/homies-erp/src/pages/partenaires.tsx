@@ -45,26 +45,21 @@ export default function Partenaires() {
   const sendForm = useForm<PartnerSendInput>({ defaultValues: { movementDate: format(new Date(), "yyyy-MM-dd") } });
   const returnForm = useForm<PartnerReturnInput>({ defaultValues: { movementDate: format(new Date(), "yyyy-MM-dd") } });
 
-  // When offline the shared client queues the request and resolves with
-  // `_offline`; it already showed a "saved offline" toast, so skip the success
-  // toast to avoid a contradictory message.
-  const isOffline = (res: unknown) => Boolean((res as { _offline?: boolean } | null)?._offline);
-
   const onAddPartner = (data: PartnerInput) => {
     createPartner.mutate({ data }, {
-      onSuccess: (res) => { if (!isOffline(res)) toast.success("Partenaire ajouté"); queryClient.invalidateQueries({ queryKey: getListPartnersQueryKey() }); setIsAddPartnerOpen(false); partnerForm.reset(); }
+      onSuccess: () => { toast.success("Partenaire ajouté"); queryClient.invalidateQueries({ queryKey: getListPartnersQueryKey() }); setIsAddPartnerOpen(false); partnerForm.reset(); }
     });
   };
 
   const onSendProduct = (data: PartnerSendInput) => {
     sendProduct.mutate({ data }, {
-      onSuccess: (res) => { if (!isOffline(res)) toast.success("Produit envoyé au partenaire"); queryClient.invalidateQueries({ queryKey: getListPartnerMovementsQueryKey() }); queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() }); setIsSendOpen(false); sendForm.reset({ movementDate: format(new Date(), "yyyy-MM-dd") }); }
+      onSuccess: () => { toast.success("Produit envoyé au partenaire"); queryClient.invalidateQueries({ queryKey: getListPartnerMovementsQueryKey() }); queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() }); setIsSendOpen(false); sendForm.reset({ movementDate: format(new Date(), "yyyy-MM-dd") }); }
     });
   };
 
   const onReturnProduct = (data: PartnerReturnInput) => {
     returnProduct.mutate({ data }, {
-      onSuccess: (res) => { if (!isOffline(res)) toast.success("Produit retourné en stock"); queryClient.invalidateQueries({ queryKey: getListPartnerMovementsQueryKey() }); queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() }); setIsReturnOpen(false); returnForm.reset({ movementDate: format(new Date(), "yyyy-MM-dd") }); }
+      onSuccess: () => { toast.success("Produit retourné en stock"); queryClient.invalidateQueries({ queryKey: getListPartnerMovementsQueryKey() }); queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() }); setIsReturnOpen(false); returnForm.reset({ movementDate: format(new Date(), "yyyy-MM-dd") }); }
     });
   };
 

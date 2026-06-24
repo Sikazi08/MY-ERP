@@ -23,7 +23,6 @@ import { Loader2, Plus, Search, Download, Ban, Upload, FileText, ChevronLeft, Ch
 import { useForm } from "react-hook-form";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { ProductSearchCombobox } from "@/components/product-combobox";
-import { enqueue, attachToOp, fileToBase64, type QueuedAttachment } from "@/lib/offline-queue";
 
 const BRANDS = ["Apple", "Samsung", "Xiaomi", "Tecno", "Infinix", "itel", "Huawei", "Oppo", "Vivo", "Realme", "Nokia", "Autre"];
 const CAPACITIES = ["16 Go", "32 Go", "64 Go", "128 Go", "256 Go", "512 Go", "1 To"];
@@ -156,25 +155,7 @@ export default function Ventes() {
     await fetch(`/api/attachments/products/${productId}`, { method: "POST", credentials: "include", body: fd });
   };
 
-  const collectTrocAttachments = async (saleType?: string): Promise<QueuedAttachment[]> => {
-    if (saleType !== "troc") return [];
-    const files: Array<[File | null, string]> = trocHasInvoice
-      ? [[invoiceFile, "facture"]]
-      : [[declFile, "declaration"], [cniFile, "cni"]];
-    const result: QueuedAttachment[] = [];
-    for (const [file, type] of files) {
-      if (!file) continue;
-      result.push({
-        type,
-        filename: file.name,
-        mimeType: file.type || "application/octet-stream",
-        dataBase64: await fileToBase64(file),
-      });
-    }
-    return result;
-  };
-
-  const onSubmit = async (data: SaleInput & { quantitySold?: number }) => {
+  const onSubmit = (data: SaleInput & { quantitySold?: number }) => {
     if (!data.productId) { form.setError("productId" as any, { message: "Veuillez sélectionner un produit" }); return; }
     if (!data.amount || data.amount <= 0) { form.setError("amount", { message: "Le montant doit être supérieur à 0" }); return; }
     if (data.saleType === "troc" && !data.trocProduct) { form.setError("trocProduct", { message: "Le nom de l'appareil est obligatoire" }); return; }
@@ -182,42 +163,8 @@ export default function Ventes() {
 
     const payload = { ...data, trocHasInvoice: trocHasInvoice ? true : undefined };
 
-    // Offline: queue the sale (with its troc attachments) for later replay.
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      const attachments = await collectTrocAttachments(data.saleType);
-      await enqueue({
-        method: "POST",
-        url: "/api/sales",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        label: "Vente",
-        attachments: attachments.length ? attachments : undefined,
-      });
-      toast("📴 Vente enregistrée hors-ligne", {
-        description: "Sera synchronisée au retour de la connexion.",
-      });
-      queryClient.invalidateQueries({ queryKey: getListSalesQueryKey() });
-      setIsAddOpen(false);
-      resetForm();
-      return;
-    }
-
     createMutation.mutate({ data: payload as SaleInput }, {
       onSuccess: async (saleData: any) => {
-        // The request failed mid-flight (online but unreachable) and was queued
-        // by the shared client's offline handler. The server never assigned a
-        // product id, so attach the troc files to the queued op for later upload.
-        if (saleData?._offline) {
-          if (data.saleType === "troc") {
-            const attachments = await collectTrocAttachments(data.saleType);
-            if (attachments.length) await attachToOp(saleData.id, attachments);
-          }
-          // The offline handler already showed a "saved offline" toast.
-          queryClient.invalidateQueries({ queryKey: getListSalesQueryKey() });
-          setIsAddOpen(false);
-          resetForm();
-          return;
-        }
         // Upload troc attachments if any files selected
         if (data.saleType === "troc" && saleData?.trocProductId) {
           const uploads: Promise<void>[] = [];

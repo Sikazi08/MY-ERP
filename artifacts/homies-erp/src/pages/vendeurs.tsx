@@ -85,9 +85,8 @@ export default function Vendeurs() {
     createMutation.mutate(
       { data: { name: form.name.trim(), phone: form.phone.trim() || undefined } },
       {
-        onSuccess: (res) => {
-          // Offline: the shared client already showed a "saved offline" toast.
-          if (!(res as { _offline?: boolean } | null)?._offline) toast.success(`Vendeur "${form.name.trim()}" ajouté avec succès.`);
+        onSuccess: () => {
+          toast.success(`Vendeur "${form.name.trim()}" ajouté avec succès.`);
           queryClient.invalidateQueries({ queryKey: getListSellersQueryKey() });
           setIsAddOpen(false);
           setForm(EMPTY_FORM);
@@ -121,8 +120,8 @@ export default function Vendeurs() {
         },
       },
       {
-        onSuccess: (res) => {
-          if (!(res as { _offline?: boolean } | null)?._offline) toast.success("Vendeur mis à jour avec succès.");
+        onSuccess: () => {
+          toast.success("Vendeur mis à jour avec succès.");
           queryClient.invalidateQueries({ queryKey: getListSellersQueryKey() });
           setEditSeller(null);
         },
@@ -139,8 +138,8 @@ export default function Vendeurs() {
     deleteMutation.mutate(
       { id: s.id },
       {
-        onSuccess: (res) => {
-          if (!(res as unknown as { _offline?: boolean } | null)?._offline) toast.success(`Vendeur "${s.name}" supprimé.`);
+        onSuccess: () => {
+          toast.success(`Vendeur "${s.name}" supprimé.`);
           queryClient.invalidateQueries({ queryKey: getListSellersQueryKey() });
         },
         onError: (e: unknown) => {

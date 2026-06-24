@@ -34,9 +34,8 @@ export default function Utilisateurs() {
 
   const onSubmit = (data: UserInput) => {
     createMutation.mutate({ data }, {
-      onSuccess: (res) => {
-        // Offline: the shared client already showed a "saved offline" toast.
-        if (!(res as { _offline?: boolean } | null)?._offline) toast.success("Utilisateur créé avec succès");
+      onSuccess: () => {
+        toast.success("Utilisateur créé avec succès");
         queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
         setIsAddOpen(false);
         form.reset();
@@ -51,8 +50,8 @@ export default function Utilisateurs() {
   const handleDelete = (id: number) => {
     if(confirm("Attention, cela supprimera l'accès de cet utilisateur. Continuer ?")) {
       deleteMutation.mutate({ id }, {
-        onSuccess: (res) => {
-          if (!(res as unknown as { _offline?: boolean } | null)?._offline) toast.success("Utilisateur supprimé");
+        onSuccess: () => {
+          toast.success("Utilisateur supprimé");
           queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
         }
       });

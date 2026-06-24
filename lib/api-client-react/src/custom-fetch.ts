@@ -44,45 +44,6 @@ export function setAuthTokenGetter(getter: AuthTokenGetter | null): void {
   _authTokenGetter = getter;
 }
 
-/**
- * A serialized write request handed to an offline handler when a mutating
- * request (POST/PUT/PATCH/DELETE) fails because the network is unreachable.
- */
-export interface OfflineRequest {
-  method: string;
-  url: string;
-  headers: Record<string, string>;
-  body: string | null;
-}
-
-/**
- * Invoked when a replayable write request fails due to a network error.
- * Return a value to resolve the original call optimistically (e.g. after
- * queueing the request for later replay), or throw to let the original
- * network error propagate.
- */
-export type OfflineWriteHandler = (request: OfflineRequest) => Promise<unknown>;
-
-let _offlineWriteHandler: OfflineWriteHandler | null = null;
-
-/**
- * Register a handler that intercepts mutating requests which fail because the
- * device is offline. This is an opt-in mechanism intended for web apps that
- * want to queue writes locally and replay them on reconnect. It is never used
- * unless a handler is explicitly registered, so shared consumers (e.g. Expo)
- * are unaffected. Pass `null` to clear the handler.
- */
-export function setOfflineWriteHandler(handler: OfflineWriteHandler | null): void {
-  _offlineWriteHandler = handler;
-}
-
-// `fetch` rejects with a TypeError when the request cannot be made at all
-// (DNS failure, no connectivity, CORS-preflight network failure, etc.).
-// HTTP error statuses resolve normally and are surfaced as ApiError instead.
-function isNetworkError(error: unknown): boolean {
-  return error instanceof TypeError;
-}
-
 function isRequest(input: RequestInfo | URL): input is Request {
   return typeof Request !== "undefined" && input instanceof Request;
 }
@@ -399,31 +360,7 @@ export async function customFetch<T = unknown>(
 
   const requestInfo = { method, url: resolveUrl(input) };
 
-  // Only JSON/text bodies (or no body) can be faithfully serialized and
-  // replayed by an offline handler; FormData/Blob bodies are skipped.
-  const isReplayableWrite =
-    method !== "GET" &&
-    method !== "HEAD" &&
-    (init.body == null || typeof init.body === "string");
-
-  let response: Response;
-  try {
-    response = await fetch(input, { ...init, method, headers });
-  } catch (error) {
-    if (_offlineWriteHandler && isReplayableWrite && isNetworkError(error)) {
-      const headerObj: Record<string, string> = {};
-      headers.forEach((value, key) => {
-        headerObj[key] = value;
-      });
-      return (await _offlineWriteHandler({
-        method,
-        url: requestInfo.url,
-        headers: headerObj,
-        body: typeof init.body === "string" ? init.body : null,
-      })) as T;
-    }
-    throw error;
-  }
+  const response = await fetch(input, { ...init, method, headers });
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);

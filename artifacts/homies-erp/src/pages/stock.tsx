@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import {
   useListProducts, useCreateProduct, useUpdateProduct, useDeleteProduct,
@@ -17,10 +17,107 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Loader2, Plus, Search, Download, Trash2, Edit2, ChevronLeft, ChevronRight, Smartphone, Package } from "lucide-react";
+import { Loader2, Plus, Search, Download, Trash2, Edit2, ChevronLeft, ChevronRight, Smartphone, Package, Upload, FileText, Paperclip } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { format } from "date-fns";
+
+interface TrocAttachment { id: number; type: string; filename: string; mime_type: string; created_at: string; }
+
+function AttachmentsSection({ productId }: { productId: number }) {
+  const [attachments, setAttachments] = useState<TrocAttachment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploadType, setUploadType] = useState<"facture" | "declaration" | "cni">("facture");
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/attachments/products/${productId}`, { credentials: "include" });
+      if (res.ok) setAttachments(await res.json());
+    } finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, [productId]);
+
+  const handleUpload = async (file: File) => {
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("type", uploadType);
+      const res = await fetch(`/api/attachments/products/${productId}`, { method: "POST", credentials: "include", body: fd });
+      if (res.ok) { toast.success("Pièce jointe ajoutée"); await load(); }
+      else { const e = await res.json(); toast.error(e.error || "Erreur upload"); }
+    } finally { setUploading(false); }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Supprimer cette pièce jointe ?")) return;
+    const res = await fetch(`/api/attachments/${id}`, { method: "DELETE", credentials: "include" });
+    if (res.ok) { toast.success("Supprimé"); await load(); }
+    else toast.error("Erreur lors de la suppression");
+  };
+
+  const typeLabel: Record<string, string> = { facture: "Facture", declaration: "Déclaration sur l'honneur", cni: "CNI" };
+  const typeColor: Record<string, string> = { facture: "text-green-400 border-green-400/30 bg-green-400/10", declaration: "text-blue-400 border-blue-400/30 bg-blue-400/10", cni: "text-orange-400 border-orange-400/30 bg-orange-400/10" };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h4 className="font-semibold text-sm flex items-center gap-2"><Paperclip className="h-4 w-4" /> Pièces jointes troc</h4>
+        <div className="flex gap-2 items-center">
+          <Select value={uploadType} onValueChange={(v: any) => setUploadType(v)}>
+            <SelectTrigger className="h-7 text-xs w-36"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="facture">Facture</SelectItem>
+              <SelectItem value="declaration">Déclaration</SelectItem>
+              <SelectItem value="cni">CNI</SelectItem>
+            </SelectContent>
+          </Select>
+          <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f); e.target.value = ""; }} />
+          <Button size="sm" variant="outline" className="h-7 text-xs" disabled={uploading}
+            onClick={() => fileRef.current?.click()}>
+            {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Upload className="h-3 w-3 mr-1" />Ajouter</>}
+          </Button>
+        </div>
+      </div>
+      {loading ? (
+        <div className="text-center py-3"><Loader2 className="h-4 w-4 animate-spin mx-auto text-muted-foreground" /></div>
+      ) : attachments.length === 0 ? (
+        <p className="text-xs text-muted-foreground text-center py-3 border border-dashed border-border rounded-lg">Aucune pièce jointe</p>
+      ) : (
+        <div className="space-y-2">
+          {attachments.map(a => (
+            <div key={a.id} className="flex items-center justify-between p-2.5 rounded-lg border border-border bg-muted/20">
+              <div className="flex items-center gap-2 min-w-0">
+                <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${typeColor[a.type] || ""}`}>{typeLabel[a.type] || a.type}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate max-w-[180px] mt-0.5">{a.filename}</p>
+                </div>
+              </div>
+              <div className="flex gap-1 shrink-0">
+                <Button size="sm" variant="ghost" className="h-7 w-7 p-0"
+                  onClick={() => window.open(`/api/attachments/${a.id}/download`, "_blank")}>
+                  <Download className="h-3.5 w-3.5" />
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                  onClick={() => handleDelete(a.id)}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const BRANDS = ["Apple", "Samsung", "Xiaomi", "Tecno", "Infinix", "itel", "Huawei", "Oppo", "Vivo", "Realme", "Nokia", "Autre"];
 const CAPACITIES = ["16 Go", "32 Go", "64 Go", "128 Go", "256 Go", "512 Go", "1 To"];
@@ -168,6 +265,10 @@ export default function Stock() {
   const [addProductType, setAddProductType] = useState<"téléphone" | "accessoire">("téléphone");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const importFileRef = useRef<HTMLInputElement>(null);
 
   const params = {
     search: search || undefined,
@@ -216,6 +317,28 @@ export default function Stock() {
         toast.error(msg || "Erreur lors de l'ajout");
       },
     });
+  };
+
+  const handleImport = async () => {
+    if (!importFile) return;
+    setImportLoading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", importFile);
+      const res = await fetch("/api/products/import", { method: "POST", credentials: "include", body: fd });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(`Import réussi : ${data.imported}/${data.total} produits importés`);
+        if (data.errors?.length) toast.warning(`${data.errors.length} erreur(s) : ${data.errors[0]}`);
+        queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
+        setIsImportOpen(false);
+        setImportFile(null);
+      } else {
+        toast.error(data.error || "Erreur lors de l'import");
+      }
+    } finally {
+      setImportLoading(false);
+    }
   };
 
   const onEditSubmit = (data: ProductFormData) => {
@@ -270,10 +393,15 @@ export default function Stock() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-3xl font-bold tracking-tight">Stock</h1>
-        <div className="flex gap-2 w-full sm:w-auto">
+        <div className="flex gap-2 w-full sm:w-auto flex-wrap">
           {isAdmin && <Button variant="outline" onClick={() => window.open('/api/exports/stock', '_blank')} className="w-full sm:w-auto">
             <Download className="mr-2 h-4 w-4" /> Exporter
           </Button>}
+          {isAdmin && (
+            <Button variant="outline" className="w-full sm:w-auto border-blue-500/40 text-blue-400 hover:bg-blue-500/10" onClick={() => setIsImportOpen(true)}>
+              <Upload className="mr-2 h-4 w-4" /> Importer Stock
+            </Button>
+          )}
           <Dialog open={isAddOpen} onOpenChange={(open) => { setIsAddOpen(open); if (!open) resetAddForm("téléphone"); }}>
             <DialogTrigger asChild>
               <Button className="w-full sm:w-auto"><Plus className="mr-2 h-4 w-4" /> Nouveau Produit</Button>
@@ -533,6 +661,12 @@ export default function Stock() {
                     </div>
                   )}
                 </div>
+                {isPhone && p.entryMethod === "troc" && (
+                  <div className="border-t border-primary/20 pt-4">
+                    <AttachmentsSection productId={selectedProduct.id} />
+                  </div>
+                )}
+
                 {(isAdmin || p.createdByUserId === user?.id) && (
                   <div className="pt-4 flex gap-3 border-t border-border">
                     <Button variant="outline" className="flex-1" onClick={() => openEdit(selectedProduct)}>
@@ -557,6 +691,60 @@ export default function Stock() {
           })()}
         </SheetContent>
       </Sheet>
+
+      {/* Stock Import Dialog */}
+      <Dialog open={isImportOpen} onOpenChange={v => { setIsImportOpen(v); if (!v) setImportFile(null); }}>
+        <DialogContent className="bg-card border-border text-foreground sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Importer du stock (Excel / CSV)</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-lg border border-dashed border-border bg-muted/20 p-6 text-center space-y-3">
+              <input ref={importFileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) setImportFile(f); e.target.value = ""; }} />
+              {importFile ? (
+                <div className="space-y-2">
+                  <FileText className="h-10 w-10 mx-auto text-green-400" />
+                  <p className="text-sm font-medium text-green-400">{importFile.name}</p>
+                  <Button size="sm" variant="ghost" onClick={() => setImportFile(null)} className="text-muted-foreground">
+                    Changer de fichier
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Upload className="h-10 w-10 mx-auto text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Glissez un fichier ou cliquez pour sélectionner</p>
+                  <Button size="sm" variant="outline" onClick={() => importFileRef.current?.click()}>
+                    Sélectionner un fichier .xlsx ou .csv
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            <div className="text-xs text-muted-foreground space-y-1 bg-muted/20 rounded-lg p-3 border border-border">
+              <p className="font-semibold text-foreground mb-2">Colonnes supportées :</p>
+              <div className="grid grid-cols-2 gap-1">
+                <span><code className="bg-background px-1 rounded">Produit</code> — Nom (obligatoire)</span>
+                <span><code className="bg-background px-1 rounded">Type</code> — téléphone/accessoire</span>
+                <span><code className="bg-background px-1 rounded">Marque</code> — Marque</span>
+                <span><code className="bg-background px-1 rounded">IMEI</code> — IMEI</span>
+                <span><code className="bg-background px-1 rounded">Capacité</code> — Ex: 128 Go</span>
+                <span><code className="bg-background px-1 rounded">Couleur</code> — Couleur</span>
+                <span><code className="bg-background px-1 rounded">Fournisseur</code> — Fournisseur</span>
+                <span><code className="bg-background px-1 rounded">Quantité</code> — Qté (accessoire)</span>
+                <span><code className="bg-background px-1 rounded">PV</code> — Prix de vente</span>
+                <span><code className="bg-background px-1 rounded">PA</code> — Prix d'achat</span>
+                <span><code className="bg-background px-1 rounded">Date</code> — Date d'entrée</span>
+                <span><code className="bg-background px-1 rounded">Méthode</code> — achat/troc</span>
+              </div>
+            </div>
+
+            <Button className="w-full" disabled={!importFile || importLoading} onClick={handleImport}>
+              {importLoading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Import en cours...</> : <><Upload className="h-4 w-4 mr-2" /> Lancer l'import</>}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

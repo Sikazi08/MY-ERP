@@ -12,13 +12,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Loader2, Plus, Search, Download, Ban, Upload, FileText, ChevronLeft, ChevronRight, Smartphone, Package } from "lucide-react";
+import { Loader2, Plus, Search, Download, Ban, Upload, FileText, ChevronLeft, ChevronRight, Smartphone, Package, Eye, Printer, Paperclip } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 
@@ -139,11 +140,14 @@ export default function Ventes() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [trocHasInvoice, setTrocHasInvoice] = useState(false);
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
+  const [declFile, setDeclFile] = useState<File | null>(null);
+  const [cniFile, setCniFile] = useState<File | null>(null);
   const invoiceInputRef = useRef<HTMLInputElement>(null);
   const declInputRef = useRef<HTMLInputElement>(null);
   const cniInputRef = useRef<HTMLInputElement>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
+  const [selectedSale, setSelectedSale] = useState<any | null>(null);
 
   // Client autocomplete
   const nameAutocomplete = useClientAutocomplete();
@@ -203,8 +207,17 @@ export default function Ventes() {
     form.reset({ saleType: "normal", paymentMode: "Cash", amount: 0, clientName: "", clientPhone: "" });
     setTrocHasInvoice(false);
     setInvoiceFile(null);
+    setDeclFile(null);
+    setCniFile(null);
     nameAutocomplete.clear();
     phoneAutocomplete.clear();
+  };
+
+  const uploadAttachment = async (productId: number, file: File, type: string) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("type", type);
+    await fetch(`/api/attachments/products/${productId}`, { method: "POST", credentials: "include", body: fd });
   };
 
   const onSubmit = (data: SaleInput & { quantitySold?: number }) => {
@@ -216,7 +229,15 @@ export default function Ventes() {
     const payload = { ...data, trocHasInvoice: trocHasInvoice ? true : undefined };
 
     createMutation.mutate({ data: payload as SaleInput }, {
-      onSuccess: () => {
+      onSuccess: async (saleData: any) => {
+        // Upload troc attachments if any files selected
+        if (data.saleType === "troc" && saleData?.trocProductId) {
+          const uploads: Promise<void>[] = [];
+          if (trocHasInvoice && invoiceFile) uploads.push(uploadAttachment(saleData.trocProductId, invoiceFile, "facture"));
+          if (!trocHasInvoice && declFile) uploads.push(uploadAttachment(saleData.trocProductId, declFile, "declaration"));
+          if (!trocHasInvoice && cniFile) uploads.push(uploadAttachment(saleData.trocProductId, cniFile, "cni"));
+          if (uploads.length) await Promise.all(uploads);
+        }
         toast.success("Vente enregistrée avec succès ✓");
         queryClient.invalidateQueries({ queryKey: getListSalesQueryKey() });
         queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
@@ -460,26 +481,32 @@ export default function Ventes() {
                         {trocHasInvoice ? (
                           <div className="space-y-2">
                             <input ref={invoiceInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
-                              onChange={e => { const f = e.target.files?.[0]; if (f) { setInvoiceFile(f); toast.success(`Facture importée : ${f.name}`); } }} />
+                              onChange={e => { const f = e.target.files?.[0]; if (f) { setInvoiceFile(f); toast.success(`Facture sélectionnée : ${f.name}`); } }} />
                             <Button type="button" variant="outline" size="sm" onClick={() => invoiceInputRef.current?.click()}>
-                              <Upload className="h-4 w-4 mr-2" /> Importer la facture
+                              <Upload className="h-4 w-4 mr-2" /> Sélectionner la facture
                             </Button>
                             {invoiceFile && <div className="flex items-center gap-1 text-xs text-green-400"><FileText className="h-3.5 w-3.5" />{invoiceFile.name}</div>}
                           </div>
                         ) : (
                           <div className="space-y-2">
                             <p className="text-xs text-muted-foreground">Documents alternatifs (facultatif) :</p>
-                            <div className="flex gap-2 flex-wrap">
-                              <input ref={declInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
-                                onChange={e => { const f = e.target.files?.[0]; if (f) toast.success(`Déclaration importée : ${f.name}`); }} />
-                              <Button type="button" variant="outline" size="sm" onClick={() => declInputRef.current?.click()}>
-                                <Upload className="h-4 w-4 mr-1" /> Déclaration sur l'honneur
-                              </Button>
-                              <input ref={cniInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
-                                onChange={e => { const f = e.target.files?.[0]; if (f) toast.success(`CNI importée : ${f.name}`); }} />
-                              <Button type="button" variant="outline" size="sm" onClick={() => cniInputRef.current?.click()}>
-                                <Upload className="h-4 w-4 mr-1" /> CNI
-                              </Button>
+                            <div className="flex flex-col gap-2">
+                              <div className="flex items-center gap-2">
+                                <input ref={declInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
+                                  onChange={e => { const f = e.target.files?.[0]; if (f) { setDeclFile(f); toast.success(`Déclaration sélectionnée : ${f.name}`); } }} />
+                                <Button type="button" variant="outline" size="sm" onClick={() => declInputRef.current?.click()}>
+                                  <Upload className="h-4 w-4 mr-1" /> Déclaration sur l'honneur
+                                </Button>
+                                {declFile && <span className="text-xs text-green-400 truncate max-w-[120px]"><FileText className="h-3 w-3 inline mr-0.5" />{declFile.name}</span>}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <input ref={cniInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
+                                  onChange={e => { const f = e.target.files?.[0]; if (f) { setCniFile(f); toast.success(`CNI sélectionnée : ${f.name}`); } }} />
+                                <Button type="button" variant="outline" size="sm" onClick={() => cniInputRef.current?.click()}>
+                                  <Upload className="h-4 w-4 mr-1" /> CNI
+                                </Button>
+                                {cniFile && <span className="text-xs text-green-400 truncate max-w-[120px]"><FileText className="h-3 w-3 inline mr-0.5" />{cniFile.name}</span>}
+                              </div>
                             </div>
                           </div>
                         )}
@@ -538,7 +565,9 @@ export default function Ventes() {
                 const s = sale as any;
                 const isPhone = !s.product?.productType || s.product?.productType === "téléphone";
                 return (
-                  <TableRow key={sale.id} className={`border-border ${sale.cancelled ? "opacity-50" : ""}`}>
+                  <TableRow key={sale.id}
+                    className={`border-border cursor-pointer hover:bg-muted/40 ${sale.cancelled ? "opacity-50" : ""}`}
+                    onClick={() => setSelectedSale(sale)}>
                     <TableCell className="text-sm">
                       {formatDateFr(sale.saleDate)}<br />
                       <span className="text-muted-foreground text-xs">{sale.saleTime.substring(0, 5)}</span>
@@ -564,7 +593,7 @@ export default function Ventes() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right font-bold">{formatFCFA(sale.amount)}</TableCell>
-                    <TableCell>
+                    <TableCell onClick={e => e.stopPropagation()}>
                       {!sale.cancelled ? (
                         <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10"
                           onClick={() => handleCancelSale(sale.id)}>
@@ -601,6 +630,99 @@ export default function Ventes() {
           </div>
         </div>
       )}
+
+      {/* Sale Detail Sheet */}
+      <Sheet open={!!selectedSale} onOpenChange={(open) => !open && setSelectedSale(null)}>
+        <SheetContent className="bg-card border-border text-foreground w-full sm:max-w-lg overflow-y-auto">
+          <SheetHeader className="mb-6 border-b border-border pb-4">
+            <SheetTitle className="text-xl font-bold flex items-center justify-between">
+              Détail de la vente
+              <span className="font-mono text-sm text-primary bg-primary/10 px-2 py-1 rounded">#{String(selectedSale?.id ?? "").padStart(5, "0")}</span>
+            </SheetTitle>
+          </SheetHeader>
+          {selectedSale && (() => {
+            const s = selectedSale as any;
+            const paymentLabel: Record<string, string> = { OM: "Orange Money", MOMO: "Mobile Money", Cash: "Cash / Espèces" };
+            const isPhone = !s.product?.productType || s.product?.productType === "téléphone";
+            return (
+              <div className="space-y-5">
+                {s.cancelled && <div className="bg-destructive/10 border border-destructive/30 text-destructive rounded-lg px-4 py-2 text-sm font-medium">❌ Cette vente a été annulée</div>}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-muted/30 rounded-lg p-3 border border-border">
+                    <p className="text-xs text-muted-foreground mb-1">Date</p>
+                    <p className="font-semibold text-sm">{formatDateFr(s.saleDate)}</p>
+                    <p className="text-xs text-muted-foreground">{(s.saleTime || "").substring(0, 5)}</p>
+                  </div>
+                  <div className="bg-muted/30 rounded-lg p-3 border border-border">
+                    <p className="text-xs text-muted-foreground mb-1">Montant</p>
+                    <p className="font-bold text-primary text-lg">{formatFCFA(s.amount)}</p>
+                  </div>
+                  <div className="bg-muted/30 rounded-lg p-3 border border-border">
+                    <p className="text-xs text-muted-foreground mb-1">Mode de paiement</p>
+                    <p className="font-semibold text-sm">{paymentLabel[s.paymentMode] || s.paymentMode}</p>
+                  </div>
+                  <div className="bg-muted/30 rounded-lg p-3 border border-border">
+                    <p className="text-xs text-muted-foreground mb-1">Type</p>
+                    <Badge className={s.saleType === "troc" ? "bg-primary/20 text-primary" : "bg-green-500/20 text-green-400"}>
+                      {s.saleType === "troc" ? "🔄 Troc" : "✅ Normal"}
+                    </Badge>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Produit</h4>
+                  <div className="bg-muted/30 rounded-lg p-3 border border-border space-y-1">
+                    <div className="flex items-center gap-2">
+                      {isPhone ? <Smartphone className="h-4 w-4 text-muted-foreground" /> : <Package className="h-4 w-4 text-blue-400" />}
+                      <span className="font-bold">{s.product?.product || "—"}</span>
+                      {s.product?.brand && <span className="text-muted-foreground text-sm">{s.product.brand}</span>}
+                    </div>
+                    <p className="text-xs font-mono text-muted-foreground">{s.product?.productId}{s.product?.imei ? ` · IMEI: ${s.product.imei}` : ""}</p>
+                    {s.product?.capacity && <p className="text-xs text-muted-foreground">{s.product.capacity}{s.product?.color ? ` · ${s.product.color}` : ""}</p>}
+                    {s.quantitySold > 1 && <p className="text-xs text-muted-foreground">Quantité vendue : <strong>{s.quantitySold}</strong></p>}
+                  </div>
+                </div>
+
+                {(s.clientName || s.clientPhone) && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Client</h4>
+                    <div className="bg-muted/30 rounded-lg p-3 border border-border">
+                      {s.clientName && <p className="font-medium">{s.clientName}</p>}
+                      {s.clientPhone && <p className="text-sm text-muted-foreground">{s.clientPhone}</p>}
+                    </div>
+                  </div>
+                )}
+
+                {s.vendorName && (
+                  <div className="bg-muted/30 rounded-lg p-3 border border-border">
+                    <p className="text-xs text-muted-foreground mb-1">Vendeur</p>
+                    <p className="font-medium text-sm">{s.vendorName}</p>
+                  </div>
+                )}
+
+                {s.saleType === "troc" && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Appareil reçu en troc</h4>
+                    <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 space-y-1">
+                      <p className="font-medium">{s.trocProduct} {s.trocBrand ? `(${s.trocBrand})` : ""}</p>
+                      {s.trocImei && <p className="text-xs font-mono text-muted-foreground">IMEI: {s.trocImei}</p>}
+                      {s.trocCapacity && <p className="text-xs text-muted-foreground">{s.trocCapacity}{s.trocColor ? ` · ${s.trocColor}` : ""}</p>}
+                    </div>
+                  </div>
+                )}
+
+                <div className="pt-4 border-t border-border space-y-3">
+                  <Button className="w-full" variant="outline"
+                    onClick={() => window.open(`/api/sales/${s.id}/invoice`, "_blank")}>
+                    <Printer className="h-4 w-4 mr-2" /> Voir & Télécharger la facture
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

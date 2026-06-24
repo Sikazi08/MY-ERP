@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db, salesTable, productsTable, clientsTable, movementsTable, sellersTable } from "@workspace/db";
 import { eq, ilike, or, and, sql } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
+import { formatFCFA_server } from "../utils/format";
 
 const router = Router();
 
@@ -249,6 +250,131 @@ router.post("/:id/cancel", requireAuth, async (req, res): Promise<void> => {
   });
 
   res.json({ ...updated, amount: Number(updated.amount) });
+});
+
+// GET /api/sales/:id/invoice — HTML invoice for printing
+router.get("/:id/invoice", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id);
+  const [sale] = await db.select().from(salesTable).where(eq(salesTable.id, id)).limit(1);
+  if (!sale) { res.status(404).send("Vente non trouvée"); return; }
+
+  const [product] = await db.select().from(productsTable).where(eq(productsTable.id, sale.productId)).limit(1);
+
+  const formattedDate = new Date(sale.saleDate).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
+  const paymentLabel: Record<string, string> = { OM: "Orange Money", MOMO: "Mobile Money", Cash: "Cash / Espèces" };
+
+  const html = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Facture #${String(id).padStart(5, "0")}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #1a1a1a; background: white; padding: 40px; max-width: 700px; margin: 0 auto; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #f97316; padding-bottom: 20px; margin-bottom: 24px; }
+  .brand { font-size: 28px; font-weight: 900; color: #f97316; letter-spacing: -1px; }
+  .brand-sub { font-size: 12px; color: #666; margin-top: 2px; }
+  .invoice-title { text-align: right; }
+  .invoice-title h2 { font-size: 22px; font-weight: 700; }
+  .invoice-title .num { color: #f97316; font-size: 14px; margin-top: 4px; }
+  .invoice-title .date { color: #555; font-size: 13px; margin-top: 2px; }
+  .section { margin-bottom: 24px; }
+  .section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #888; margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .info-block { background: #f8f8f8; border: 1px solid #eee; border-radius: 8px; padding: 14px; }
+  .info-label { font-size: 11px; color: #777; margin-bottom: 2px; }
+  .info-value { font-size: 15px; font-weight: 600; }
+  .product-table { width: 100%; border-collapse: collapse; }
+  .product-table th { background: #f97316; color: white; padding: 10px 12px; font-size: 12px; font-weight: 600; text-align: left; }
+  .product-table td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid #f0f0f0; }
+  .total-section { background: linear-gradient(135deg, #f97316, #ea580c); color: white; border-radius: 10px; padding: 20px; text-align: right; }
+  .total-label { font-size: 13px; opacity: 0.9; }
+  .total-amount { font-size: 32px; font-weight: 900; letter-spacing: -1px; }
+  .footer { text-align: center; color: #aaa; font-size: 11px; margin-top: 32px; border-top: 1px solid #eee; padding-top: 16px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .badge-normal { background: #e8f5e9; color: #2e7d32; }
+  .badge-troc { background: #fff3e0; color: #e65100; }
+  .badge-cancelled { background: #ffebee; color: #c62828; }
+  @media print {
+    body { padding: 20px; }
+    button { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="header">
+  <div>
+    <div class="brand">THE HOMIES</div>
+    <div class="brand-sub">ERP — Gestion de stock & ventes</div>
+  </div>
+  <div class="invoice-title">
+    <h2>FACTURE</h2>
+    <div class="num">N° ${String(id).padStart(5, "0")}</div>
+    <div class="date">📅 ${formattedDate} à ${(sale.saleTime || "").substring(0, 5)}</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="grid2">
+    <div>
+      <div class="section-title">Client</div>
+      <div class="info-block">
+        <div class="info-label">Nom</div>
+        <div class="info-value">${sale.clientName || "Client anonyme"}</div>
+        ${sale.clientPhone ? `<div class="info-label" style="margin-top:8px">Téléphone</div><div class="info-value">${sale.clientPhone}</div>` : ""}
+      </div>
+    </div>
+    <div>
+      <div class="section-title">Informations vente</div>
+      <div class="info-block">
+        <div class="info-label">Mode de paiement</div>
+        <div class="info-value">${paymentLabel[sale.paymentMode] || sale.paymentMode}</div>
+        <div class="info-label" style="margin-top:8px">Type</div>
+        <div class="info-value">
+          <span class="badge ${sale.saleType === "troc" ? "badge-troc" : "badge-normal"}">${sale.saleType === "troc" ? "🔄 Troc" : "✅ Vente normale"}</span>
+          ${sale.cancelled ? '<span class="badge badge-cancelled" style="margin-left:4px">❌ Annulée</span>' : ""}
+        </div>
+        ${sale.vendorName ? `<div class="info-label" style="margin-top:8px">Vendeur</div><div class="info-value">${sale.vendorName}</div>` : ""}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Produit vendu</div>
+  <table class="product-table">
+    <tr>
+      <th>Référence</th>
+      <th>Désignation</th>
+      <th>IMEI</th>
+      <th>Capacité</th>
+      <th>Couleur</th>
+    </tr>
+    <tr>
+      <td>${product?.productId || "—"}</td>
+      <td><strong>${product?.product || "—"}</strong>${product?.brand ? ` (${product.brand})` : ""}</td>
+      <td style="font-family:monospace">${product?.imei || "—"}</td>
+      <td>${product?.capacity || "—"}</td>
+      <td>${product?.color || "—"}</td>
+    </tr>
+  </table>
+</div>
+
+<div class="total-section">
+  <div class="total-label">MONTANT TOTAL</div>
+  <div class="total-amount">${formatFCFA_server(Number(sale.amount))}</div>
+</div>
+
+<div class="footer">
+  <p>Merci pour votre confiance ! · THE HOMIES — Facture générée automatiquement</p>
+  <p style="margin-top:4px">Numéro de vente: #${id} · Ref produit: ${product?.productId || "—"}</p>
+  <button onclick="window.print()" style="margin-top:12px;padding:8px 20px;background:#f97316;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;">🖨️ Imprimer / Enregistrer PDF</button>
+</div>
+</body>
+</html>`;
+
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(html);
 });
 
 export default router;

@@ -14,12 +14,12 @@ router.get("/dashboard", requireAuth, async (req, res): Promise<void> => {
   const isAdmin = req.session!.role === "admin";
 
   const [stockCounts] = await db.select({
-    phones_in_stock: sql<number>`count(*) filter (where ${productsTable.status} = 'en_stock' and ${productsTable.product_type} = 'téléphone')::int`,
-    phones_at_partner: sql<number>`count(*) filter (where ${productsTable.status} = 'chez_partenaire' and ${productsTable.product_type} = 'téléphone')::int`,
-    phones_sold: sql<number>`count(*) filter (where ${productsTable.status} = 'vendu' and ${productsTable.product_type} = 'téléphone')::int`,
-    acc_in_stock: sql<number>`count(*) filter (where ${productsTable.status} = 'en_stock' and ${productsTable.product_type} = 'accessoire')::int`,
-    acc_at_partner: sql<number>`count(*) filter (where ${productsTable.status} = 'chez_partenaire' and ${productsTable.product_type} = 'accessoire')::int`,
-    acc_sold: sql<number>`count(*) filter (where ${productsTable.status} = 'vendu' and ${productsTable.product_type} = 'accessoire')::int`,
+    phones_in_stock: sql<number>`count(*) filter (where ${productsTable.status} = 'en_stock' and ${productsTable.productType} = 'téléphone')::int`,
+    phones_at_partner: sql<number>`count(*) filter (where ${productsTable.status} = 'chez_partenaire' and ${productsTable.productType} = 'téléphone')::int`,
+    phones_sold: sql<number>`count(*) filter (where ${productsTable.status} = 'vendu' and ${productsTable.productType} = 'téléphone')::int`,
+    acc_in_stock: sql<number>`count(*) filter (where ${productsTable.status} = 'en_stock' and ${productsTable.productType} = 'accessoire')::int`,
+    acc_at_partner: sql<number>`count(*) filter (where ${productsTable.status} = 'chez_partenaire' and ${productsTable.productType} = 'accessoire')::int`,
+    acc_sold: sql<number>`count(*) filter (where ${productsTable.status} = 'vendu' and ${productsTable.productType} = 'accessoire')::int`,
   }).from(productsTable);
 
   const todaySales = await db.select().from(salesTable).where(

@@ -1,7 +1,9 @@
 import { Router } from "express";
 import { db, productsTable, movementsTable, partnerMovementsTable, partnersTable } from "@workspace/db";
 import { eq, ilike, or, and, gte, lte, inArray } from "drizzle-orm";
-import { requireAuth } from "../middlewares/auth";
+import { requireAuth, requireAdmin } from "../middlewares/auth";
+import multer from "multer";
+import * as xlsx from "xlsx";
 
 const router = Router();
 
@@ -225,6 +227,91 @@ router.delete("/:id", requireAuth, async (req, res): Promise<void> => {
 
   await db.delete(productsTable).where(eq(productsTable.id, id));
   res.status(204).send();
+});
+
+// POST /api/products/import — bulk import from CSV/Excel (admin only)
+const uploadMiddleware = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+router.post("/import", requireAdmin, uploadMiddleware.single("file"), async (req, res): Promise<void> => {
+  if (!req.file) { res.status(400).json({ error: "Fichier requis (.xlsx ou .csv)" }); return; }
+
+  let rows: Record<string, unknown>[] = [];
+  try {
+    const wb = xlsx.read(req.file.buffer, { type: "buffer" });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    rows = xlsx.utils.sheet_to_json(ws);
+  } catch {
+    res.status(400).json({ error: "Impossible de lire le fichier. Vérifiez le format (.xlsx ou .csv)" });
+    return;
+  }
+
+  const today = new Date().toISOString().split("T")[0];
+  const time = new Date().toTimeString().slice(0, 8);
+  let imported = 0;
+  const errors: string[] = [];
+
+  // Get current max product id
+  const allProds = await db.select({ productId: productsTable.productId }).from(productsTable).orderBy(productsTable.id);
+  let maxId = allProds.reduce((acc, p) => {
+    const num = parseInt(p.productId.replace("TH", ""), 10);
+    return isNaN(num) ? acc : Math.max(acc, num);
+  }, 0);
+
+  for (const [i, row] of rows.entries()) {
+    const product = String(row["Produit"] || row["product"] || row["Nom"] || "").trim();
+    if (!product) { errors.push(`Ligne ${i + 2}: Nom du produit manquant`); continue; }
+
+    const imei = String(row["IMEI"] || row["imei"] || "").trim() || null;
+    // Check IMEI uniqueness
+    if (imei) {
+      const [dup] = await db.select({ id: productsTable.id }).from(productsTable).where(eq(productsTable.imei, imei)).limit(1);
+      if (dup) { errors.push(`Ligne ${i + 2}: IMEI ${imei} déjà présent`); continue; }
+    }
+
+    const productType = String(row["Type"] || row["type"] || row["productType"] || "téléphone").toLowerCase().includes("acc") ? "accessoire" : "téléphone";
+    const brand = String(row["Marque"] || row["brand"] || "").trim() || null;
+    const capacity = String(row["Capacité"] || row["capacity"] || "").trim() || null;
+    const color = String(row["Couleur"] || row["color"] || "").trim() || null;
+    const supplier = String(row["Fournisseur"] || row["supplier"] || "").trim() || null;
+    const entryDate = String(row["Date"] || row["date"] || row["entryDate"] || today).trim() || today;
+    const quantity = parseInt(String(row["Quantité"] || row["quantity"] || "1")) || 1;
+    const entryMethod = String(row["Méthode"] || row["entryMethod"] || "achat").toLowerCase().includes("troc") ? "troc" : "achat";
+    const sellingPrice = parseFloat(String(row["PV"] || row["Prix Vente"] || row["sellingPrice"] || "")) || null;
+    const purchasePrice = parseFloat(String(row["PA"] || row["Prix Achat"] || row["purchasePrice"] || "")) || null;
+    const status = String(row["Statut"] || row["status"] || "en_stock").includes("partenaire") ? "chez_partenaire" : "en_stock";
+
+    maxId++;
+    const productId = `TH${String(maxId).padStart(3, "0")}`;
+
+    try {
+      const [row2] = await db.insert(productsTable).values({
+        productId, imei, product, brand, capacity, color, supplier,
+        purchasePrice: purchasePrice !== null ? String(purchasePrice) : null,
+        sellingPrice: sellingPrice !== null ? String(sellingPrice) : null,
+        status,
+        entryDate,
+        productType,
+        quantity: productType === "accessoire" ? Math.max(1, quantity) : 1,
+        entryMethod: productType === "téléphone" ? entryMethod : null,
+        createdByUserId: req.session!.userId!,
+      }).returning();
+
+      await db.insert(movementsTable).values({
+        movementType: "achat",
+        movementDate: today,
+        movementTime: time,
+        userId: req.session!.userId!,
+        productId: row2.id,
+        productRef: row2.productId,
+        imei: row2.imei,
+        description: `Import: ${product}${brand ? " " + brand : ""} (${productId})`,
+      });
+      imported++;
+    } catch (e) {
+      errors.push(`Ligne ${i + 2}: Erreur lors de l'insertion`);
+    }
+  }
+
+  res.json({ imported, total: rows.length, errors });
 });
 
 export default router;

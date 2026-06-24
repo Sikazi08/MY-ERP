@@ -12,6 +12,7 @@ import statsRouter from "./stats";
 import exportsRouter from "./exports";
 import sellersRouter from "./sellers";
 import searchRouter from "./search";
+import attachmentsRouter from "./attachments";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use("/stats", statsRouter);
 router.use("/exports", exportsRouter);
 router.use("/sellers", sellersRouter);
 router.use("/search", searchRouter);
+router.use("/attachments", attachmentsRouter);
 
 export default router;

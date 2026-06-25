@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, productsTable, movementsTable, partnerMovementsTable, partnersTable } from "@workspace/db";
-import { eq, ilike, or, and, gte, lte, inArray } from "drizzle-orm";
+import { eq, ne, ilike, or, and, gte, lte, inArray } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 import multer from "multer";
 import ExcelJS from "exceljs";
@@ -61,6 +61,7 @@ async function getPartnerNames(rows: typeof productsTable.$inferSelect[]): Promi
 router.get("/", requireAuth, async (req, res): Promise<void> => {
   const { status, search, dateFrom, dateTo, page, limit, productType } = req.query as Record<string, string>;
   const conditions = [];
+  conditions.push(ne(productsTable.quantity, 0));
   if (status && status !== "tous") conditions.push(eq(productsTable.status, status as "en_stock" | "chez_partenaire" | "vendu"));
   if (productType && productType !== "tous") conditions.push(eq(productsTable.productType, productType));
   if (dateFrom) conditions.push(gte(productsTable.entryDate, dateFrom));

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import ExcelJS from "exceljs";
 import { db, productsTable, salesTable, expensesTable, clientsTable, movementsTable, usersTable } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { eq, ne, sql } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 
 const router = Router();
@@ -21,7 +21,7 @@ async function sendExcel(res: any, data: Record<string, unknown>[], sheetName: s
 }
 
 router.get("/stock", requireAuth, async (req, res): Promise<void> => {
-  const rows = await db.select().from(productsTable).orderBy(productsTable.id);
+  const rows = await db.select().from(productsTable).where(ne(productsTable.quantity, 0)).orderBy(productsTable.id);
   const isAdmin = req.session!.role === "admin";
   await sendExcel(res, rows.map(p => ({
     "ID Produit": p.productId,

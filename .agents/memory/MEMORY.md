@@ -1,5 +1,6 @@
 - [Drizzle sql() column refs](drizzle-sql-template.md) — use camelCase property (e.g. `productsTable.productType`) not snake_case inside sql`` templates or the reference renders as empty.
 - [Troc attachments flow](troc-attachments.md) — base64 in DB (troc_attachments table); upload after sale creation using trocProductId from onSuccess response; view/download in stock detail sheet.
+- [Invoice logo via base64](invoice-logo-base64.md) — embed logo as base64 in api-server invoice HTML; /homies-erp/logo.png returns SPA html/404 for api-served pages.
 - [ERP stack conventions](erp-stack.md) — pnpm monorepo, api-server on 8080, homies-erp Vite on dynamic PORT; do NOT use Orval hooks for new endpoints, use useQuery/fetch directly.
 - [PWA kill-switch](pwa-killswitch.md) — removing PWA from source doesn't evict already-registered service workers; ship a self-unregistering sw.js at the same URL.
 - [Supabase FK drift](supabase-fk-drift.md) — primary DB is external Supabase (dev+prod same); Drizzle `.references()` changes are NOT auto-migrated, fix FKs with manual ALTER TABLE.

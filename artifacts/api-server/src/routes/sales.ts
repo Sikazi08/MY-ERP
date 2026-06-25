@@ -3,6 +3,7 @@ import { db, salesTable, productsTable, clientsTable, movementsTable, sellersTab
 import { eq, ilike, or, and, sql } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { formatFCFA_server } from "../utils/format";
+import { LOGO_DATA_URI } from "../logo";
 
 const router = Router();
 
@@ -260,8 +261,36 @@ router.get("/:id/invoice", requireAuth, async (req, res): Promise<void> => {
 
   const [product] = await db.select().from(productsTable).where(eq(productsTable.id, sale.productId)).limit(1);
 
+  let trocProduct: typeof product | undefined;
+  if (sale.saleType === "troc" && sale.trocProductId) {
+    [trocProduct] = await db.select().from(productsTable).where(eq(productsTable.id, sale.trocProductId)).limit(1);
+  }
+
   const formattedDate = new Date(sale.saleDate).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
   const paymentLabel: Record<string, string> = { OM: "Orange Money", MOMO: "Mobile Money", Cash: "Cash / Espèces" };
+
+  const isTroc = sale.saleType === "troc";
+  const soldTitle = isTroc ? "📱 Téléphone pris par le client" : "Produit vendu";
+  const trocSection = isTroc && trocProduct ? `
+<div class="section">
+  <div class="section-title">🔄 Téléphone remis par le client (Troc)</div>
+  <table class="product-table">
+    <tr>
+      <th>Référence</th>
+      <th>Désignation</th>
+      <th>IMEI</th>
+      <th>Capacité</th>
+      <th>Couleur</th>
+    </tr>
+    <tr>
+      <td>${trocProduct.productId || "—"}</td>
+      <td><strong>${trocProduct.product || "—"}</strong>${trocProduct.brand ? ` (${trocProduct.brand})` : ""}</td>
+      <td style="font-family:monospace">${trocProduct.imei || "—"}</td>
+      <td>${trocProduct.capacity || "—"}</td>
+      <td>${trocProduct.color || "—"}</td>
+    </tr>
+  </table>
+</div>` : "";
 
   const html = `<!DOCTYPE html>
 <html lang="fr">
@@ -272,6 +301,8 @@ router.get("/:id/invoice", requireAuth, async (req, res): Promise<void> => {
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Segoe UI', Arial, sans-serif; color: #1a1a1a; background: white; padding: 40px; max-width: 700px; margin: 0 auto; }
   .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #f97316; padding-bottom: 20px; margin-bottom: 24px; }
+  .brand-wrap { display: flex; align-items: center; gap: 14px; }
+  .logo { height: 60px; width: auto; object-fit: contain; }
   .brand { font-size: 28px; font-weight: 900; color: #f97316; letter-spacing: -1px; }
   .brand-sub { font-size: 12px; color: #666; margin-top: 2px; }
   .invoice-title { text-align: right; }
@@ -303,9 +334,12 @@ router.get("/:id/invoice", requireAuth, async (req, res): Promise<void> => {
 </head>
 <body>
 <div class="header">
-  <div>
-    <div class="brand">THE HOMIES</div>
-    <div class="brand-sub">ERP — Gestion de stock & ventes</div>
+  <div class="brand-wrap">
+    <img class="logo" src="${LOGO_DATA_URI}" alt="THE HOMIES" onerror="this.style.display='none'" />
+    <div>
+      <div class="brand">THE HOMIES</div>
+      <div class="brand-sub">ERP — Gestion de stock & ventes</div>
+    </div>
   </div>
   <div class="invoice-title">
     <h2>FACTURE</h2>
@@ -340,8 +374,9 @@ router.get("/:id/invoice", requireAuth, async (req, res): Promise<void> => {
   </div>
 </div>
 
+${trocSection}
 <div class="section">
-  <div class="section-title">Produit vendu</div>
+  <div class="section-title">${soldTitle}</div>
   <table class="product-table">
     <tr>
       <th>Référence</th>

@@ -326,8 +326,9 @@ router.get("/:id/invoice", requireAuth, async (req, res): Promise<void> => {
   .badge-normal { background: #e8f5e9; color: #2e7d32; }
   .badge-troc { background: #fff3e0; color: #e65100; }
   .badge-cancelled { background: #ffebee; color: #c62828; }
+  @page { margin: 0; }
   @media print {
-    body { padding: 20px; }
+    body { padding: 24px; }
     button { display: none; }
   }
 </style>

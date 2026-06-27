@@ -14,6 +14,8 @@ router.get("/", requireAuth, async (req, res): Promise<void> => {
 
   const term = `%${q.trim()}%`;
 
+  const isAdmin = req.session?.role === "admin";
+
   const [products, clients, partners] = await Promise.all([
     db.select({
       id: productsTable.id,
@@ -33,16 +35,18 @@ router.get("/", requireAuth, async (req, res): Promise<void> => {
       )
     ).limit(10),
 
-    db.select({
-      id: clientsTable.id,
-      fullName: clientsTable.fullName,
-      phone: clientsTable.phone,
-    }).from(clientsTable).where(
-      or(
-        ilike(clientsTable.fullName, term),
-        ilike(clientsTable.phone, term),
-      )
-    ).limit(10),
+    isAdmin
+      ? db.select({
+          id: clientsTable.id,
+          fullName: clientsTable.fullName,
+          phone: clientsTable.phone,
+        }).from(clientsTable).where(
+          or(
+            ilike(clientsTable.fullName, term),
+            ilike(clientsTable.phone, term),
+          )
+        ).limit(10)
+      : Promise.resolve([]),
 
     db.select({
       id: partnersTable.id,

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db, salesTable, productsTable, clientsTable, movementsTable, sellersTable } from "@workspace/db";
 import { eq, ilike, or, and, sql } from "drizzle-orm";
-import { requireAuth } from "../middlewares/auth";
+import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { formatFCFA_server } from "../utils/format";
 import { LOGO_DATA_URI } from "../logo";
 
@@ -67,8 +67,8 @@ router.get("/", requireAuth, async (req, res): Promise<void> => {
   res.json(filtered.sort((a, b) => b.saleDate.localeCompare(a.saleDate) || b.saleTime.localeCompare(a.saleTime)));
 });
 
-// Client search for autocomplete (accessible to all authenticated users)
-router.get("/client-search", requireAuth, async (req, res): Promise<void> => {
+// Client search for autocomplete (admin only — client directory is admin-restricted)
+router.get("/client-search", requireAdmin, async (req, res): Promise<void> => {
   const { q } = req.query as Record<string, string>;
   if (!q || q.length < 2) { res.json([]); return; }
   const clients = await db.select({ id: clientsTable.id, fullName: clientsTable.fullName, phone: clientsTable.phone })

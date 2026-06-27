@@ -1,10 +1,14 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import { db, usersTable } from "@workspace/db";
+import { db, usersTable, pool } from "@workspace/db";
 import { eq, ne } from "drizzle-orm";
 import { requireAdmin } from "../middlewares/auth";
 
 const router = Router();
+
+async function invalidateUserSessions(userId: number): Promise<void> {
+  await pool.query("DELETE FROM session WHERE sess->>'userId' = $1", [String(userId)]);
+}
 
 router.get("/", requireAdmin, async (req, res): Promise<void> => {
   const users = await db.select({
@@ -44,6 +48,9 @@ router.patch("/:id", requireAdmin, async (req, res): Promise<void> => {
   if (password) updates.passwordHash = await bcrypt.hash(password, 10);
   const [user] = await db.update(usersTable).set(updates).where(eq(usersTable.id, id)).returning();
   if (!user) { res.status(404).json({ error: "Utilisateur non trouvé" }); return; }
+  if (updates.role || updates.passwordHash) {
+    await invalidateUserSessions(id);
+  }
   res.json({ id: user.id, username: user.username, fullName: user.fullName, role: user.role, createdAt: user.createdAt });
 });
 
@@ -53,6 +60,7 @@ router.delete("/:id", requireAdmin, async (req, res): Promise<void> => {
     res.status(400).json({ error: "Vous ne pouvez pas supprimer votre propre compte" });
     return;
   }
+  await invalidateUserSessions(id);
   await db.delete(usersTable).where(eq(usersTable.id, id));
   res.status(204).send();
 });

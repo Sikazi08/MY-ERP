@@ -26,11 +26,16 @@ router.get("/dashboard", requireAuth, async (req, res): Promise<void> => {
     and(eq(salesTable.saleDate, today), eq(salesTable.cancelled, false))
   );
 
-  const todayExpenses = await db.select({ total: sql<number>`coalesce(sum(${expensesTable.amount}::numeric), 0)` })
-    .from(expensesTable).where(eq(expensesTable.expenseDate, today));
+  const [todayFlows] = await db.select({
+    outflows: sql<number>`coalesce(sum(${expensesTable.amount}::numeric) filter (where ${expensesTable.direction} = 'out'), 0)`,
+    inflows: sql<number>`coalesce(sum(${expensesTable.amount}::numeric) filter (where ${expensesTable.direction} = 'in'), 0)`,
+  }).from(expensesTable).where(eq(expensesTable.expenseDate, today));
 
   const revenuToday = todaySales.reduce((sum, s) => sum + Number(s.amount), 0);
-  const expensesToday = Number(todayExpenses[0]?.total ?? 0);
+  const outflowsToday = Number(todayFlows?.outflows ?? 0);
+  const inflowsToday = Number(todayFlows?.inflows ?? 0);
+  // "Dépenses" card = all money leaving the caisse (expenses + member withdrawals)
+  const expensesToday = outflowsToday;
 
   // Low stock: only accessories with quantity <= 1
   const lowStockAcc = await db.select().from(productsTable)
@@ -51,8 +56,9 @@ router.get("/dashboard", requireAuth, async (req, res): Promise<void> => {
     accessoriesSold: stockCounts.acc_sold ?? 0,
     salesToday: todaySales.length,
     expensesToday,
+    inflowsToday,
     revenuToday,
-    cashBalanceToday: revenuToday - expensesToday,
+    cashBalanceToday: revenuToday + inflowsToday - outflowsToday,
     lowStockProducts: lowStockAcc.map(p => ({
       ...p,
       purchasePrice: undefined,
@@ -101,7 +107,7 @@ router.get("/financial", requireAdmin, async (req, res): Promise<void> => {
   const sales = await db.select({ amount: salesTable.amount, saleDate: salesTable.saleDate, productId: salesTable.productId })
     .from(salesTable).where(and(gte(salesTable.saleDate, startDate), lte(salesTable.saleDate, endDate), eq(salesTable.cancelled, false)));
   const expenses = await db.select({ amount: expensesTable.amount, expenseDate: expensesTable.expenseDate })
-    .from(expensesTable).where(and(gte(expensesTable.expenseDate, startDate), lte(expensesTable.expenseDate, endDate)));
+    .from(expensesTable).where(and(gte(expensesTable.expenseDate, startDate), lte(expensesTable.expenseDate, endDate), eq(expensesTable.direction, "out")));
   const products = await db.select({ id: productsTable.id, purchasePrice: productsTable.purchasePrice, sellingPrice: productsTable.sellingPrice }).from(productsTable);
   const productMap = new Map(products.map(p => [p.id, p]));
 

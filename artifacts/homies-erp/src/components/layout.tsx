@@ -26,7 +26,7 @@ const navItems = [
   { href: "/stock", label: "Stock", icon: Package, adminOnly: false },
   { href: "/ventes", label: "Ventes", icon: ShoppingCart, adminOnly: false },
   { href: "/partenaires", label: "Partenaires", icon: Users, adminOnly: false },
-  { href: "/depenses", label: "Dépenses", icon: Wallet, adminOnly: false },
+  { href: "/depenses", label: "Flux financier", icon: Wallet, adminOnly: false },
   { href: "/mouvements", label: "Mouvements", icon: ArrowRightLeft, adminOnly: false },
   { href: "/clients", label: "Clients", icon: UsersRound, adminOnly: true },
   { href: "/vendeurs", label: "Vendeurs", icon: UserCog, adminOnly: true },

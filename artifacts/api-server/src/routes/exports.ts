@@ -68,13 +68,22 @@ router.get("/expenses", requireAuth, async (req, res): Promise<void> => {
   const rows = await db.select().from(expensesTable)
     .leftJoin(usersTable, eq(expensesTable.userId, usersTable.id))
     .orderBy(expensesTable.expenseDate);
+  const allUsers = await db.select({ id: usersTable.id, fullName: usersTable.fullName }).from(usersTable);
+  const userMap = new Map(allUsers.map(u => [u.id, u.fullName]));
+  const flowLabels: Record<string, string> = {
+    depense: "Dépense", retrait_membre: "Retrait membre", entree: "Entrée d'argent",
+  };
   await sendExcel(res, rows.map(r => ({
     "Date": r.expenses.expenseDate,
     "Heure": r.expenses.expenseTime,
+    "Type": flowLabels[r.expenses.flowType] ?? r.expenses.flowType,
+    "Sens": r.expenses.direction === "in" ? "Entrée" : "Sortie",
     "Libellé": r.expenses.label,
-    "Montant (FCFA)": Number(r.expenses.amount),
-    "Utilisateur": r.users?.fullName ?? "",
-  })), "Dépenses", "depenses_homies_erp.xlsx");
+    "Membre concerné": r.expenses.memberId != null ? (userMap.get(r.expenses.memberId) ?? "") : "",
+    "Note": r.expenses.note ?? "",
+    "Montant (FCFA)": (r.expenses.direction === "in" ? 1 : -1) * Number(r.expenses.amount),
+    "Enregistré par": r.users?.fullName ?? "",
+  })), "Flux financier", "flux_financier_homies_erp.xlsx");
 });
 
 router.get("/clients", requireAdmin, async (req, res): Promise<void> => {
@@ -105,6 +114,7 @@ router.get("/movements", requireAuth, async (req, res): Promise<void> => {
     .orderBy(movementsTable.movementDate);
   const typeLabels: Record<string, string> = {
     achat: "Achat", vente: "Vente", entree_troc: "Entrée Troc", depense: "Dépense",
+    retrait_membre: "Retrait Membre", entree_caisse: "Entrée Caisse",
     sortie_partenaire: "Sortie Partenaire", retour_partenaire: "Retour Partenaire",
     modification_produit: "Modification Produit", suppression_produit: "Suppression Produit", annulation: "Annulation",
   };

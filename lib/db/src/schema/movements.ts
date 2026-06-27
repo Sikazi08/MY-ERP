@@ -8,6 +8,8 @@ export const movementTypeEnum = pgEnum("movement_type", [
   "vente",
   "entree_troc",
   "depense",
+  "retrait_membre",
+  "entree_caisse",
   "sortie_partenaire",
   "retour_partenaire",
   "modification_produit",

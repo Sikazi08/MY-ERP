@@ -4,3 +4,4 @@
 - [ERP stack conventions](erp-stack.md) — pnpm monorepo, api-server on 8080, homies-erp Vite on dynamic PORT; do NOT use Orval hooks for new endpoints, use useQuery/fetch directly.
 - [PWA kill-switch](pwa-killswitch.md) — removing PWA from source doesn't evict already-registered service workers; ship a self-unregistering sw.js at the same URL.
 - [Supabase FK drift](supabase-fk-drift.md) — primary DB is external Supabase (dev+prod same); Drizzle `.references()` changes are NOT auto-migrated, fix FKs with manual ALTER TABLE.
+- [Drizzle push & stale dist types](drizzle-push-and-dist-types.md) — push wants to DROP express-session table; use manual ALTER instead; regen db dist .d.ts with `tsc -b --force` after schema edits or api-server typecheck sees stale types.

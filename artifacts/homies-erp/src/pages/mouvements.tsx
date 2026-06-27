@@ -25,6 +25,8 @@ export default function Mouvements() {
       case 'vente': return <Badge className="bg-green-500/20 text-green-500">Vente</Badge>;
       case 'entree_troc': return <Badge className="bg-purple-500/20 text-purple-500">Entrée Troc</Badge>;
       case 'depense': return <Badge className="bg-destructive/20 text-destructive">Dépense</Badge>;
+      case 'retrait_membre': return <Badge className="bg-destructive/20 text-destructive">Retrait Membre</Badge>;
+      case 'entree_caisse': return <Badge className="bg-green-500/20 text-green-500">Entrée Caisse</Badge>;
       case 'sortie_partenaire': return <Badge className="bg-orange-500/20 text-orange-500">Sortie Partenaire</Badge>;
       case 'retour_partenaire': return <Badge className="bg-teal-500/20 text-teal-500">Retour Partenaire</Badge>;
       case 'annulation': return <Badge variant="destructive">Annulation</Badge>;

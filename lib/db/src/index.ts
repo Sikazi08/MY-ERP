@@ -22,6 +22,17 @@ export const pool = new Pool({
   connectionString,
   ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
 });
+
+const rawQuery = pool.query.bind(pool) as (...args: unknown[]) => unknown;
+(pool as unknown as { query: (...args: unknown[]) => unknown }).query = (queryConfig: unknown, ...args: unknown[]) => {
+  if (queryConfig && typeof queryConfig === "object" && "name" in queryConfig) {
+    const { name: _name, ...unnamedQueryConfig } = queryConfig as Record<string, unknown>;
+    return rawQuery(unnamedQueryConfig, ...args);
+  }
+
+  return rawQuery(queryConfig, ...args);
+};
+
 export const db = drizzle(pool, { schema });
 
 export * from "./schema";

@@ -13,7 +13,32 @@ router.post("/login", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Identifiant et mot de passe requis" });
     return;
   }
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.username, username)).limit(1);
+
+  let user: typeof usersTable.$inferSelect | undefined;
+  try {
+    [user] = await db.select().from(usersTable).where(eq(usersTable.username, username)).limit(1);
+  } catch (err) {
+    const dbError = err as {
+      message?: string;
+      code?: string;
+      detail?: string;
+      hint?: string;
+      cause?: { message?: string; code?: string; detail?: string; hint?: string };
+    };
+    logger.error(
+      {
+        err,
+        dbCode: dbError.code ?? dbError.cause?.code,
+        dbDetail: dbError.detail ?? dbError.cause?.detail,
+        dbHint: dbError.hint ?? dbError.cause?.hint,
+        dbCause: dbError.cause?.message,
+      },
+      "Login database query failed",
+    );
+    res.status(500).json({ error: "Erreur de connexion à la base de données" });
+    return;
+  }
+
   if (!user) {
     res.status(401).json({ error: "Identifiant ou mot de passe incorrect" });
     return;

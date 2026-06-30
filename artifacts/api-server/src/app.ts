@@ -65,7 +65,12 @@ const frontendDistPath = path.resolve(__dirname, "..", "..", "homies-erp", "dist
 
 if (fs.existsSync(frontendDistPath)) {
   app.use(express.static(frontendDistPath));
-  app.get("*", (_req, res) => {
+  app.use((req, res, next) => {
+    if (req.method !== "GET" || req.path.startsWith("/api")) {
+      next();
+      return;
+    }
+
     res.sendFile(path.join(frontendDistPath, "index.html"));
   });
 }

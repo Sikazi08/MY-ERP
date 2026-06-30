@@ -9,9 +9,11 @@ import { formatAmountWithWords, numberToWordsFr } from "./sales-invoice-utils.js
 const router = Router();
 const saleTypes = ["normal", "troc", "fast_deal"] as const;
 const paymentModes = ["OM", "MOMO", "Cash"] as const;
+const saleStatuses = ["valides", "annulees"] as const;
 
 type SaleType = typeof saleTypes[number];
 type PaymentMode = typeof paymentModes[number];
+type SaleStatus = typeof saleStatuses[number];
 
 function nowDateStr() { return new Date().toISOString().split("T")[0]; }
 function nowTimeStr() { return new Date().toTimeString().slice(0, 8); }
@@ -40,6 +42,24 @@ function isPaymentMode(value: unknown): value is PaymentMode {
   return paymentModes.includes(value as PaymentMode);
 }
 
+function isSaleStatus(value: unknown): value is SaleStatus {
+  return saleStatuses.includes(value as SaleStatus);
+}
+
+function isDateString(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00`));
+}
+
+function normalizeTimeString(value: string): string | null {
+  if (/^\d{2}:\d{2}$/.test(value)) return `${value}:00`;
+  if (/^\d{2}:\d{2}:\d{2}$/.test(value)) return value;
+  return null;
+}
+
+function formatAmountForMovement(value: unknown): string {
+  return `${Number(value).toLocaleString("fr-FR")} FCFA`;
+}
+
 async function generateProductId(): Promise<string> {
   const products = await db.select({ productId: productsTable.productId }).from(productsTable).orderBy(productsTable.id);
   const max = products.reduce((acc, p) => {
@@ -50,7 +70,7 @@ async function generateProductId(): Promise<string> {
 }
 
 router.get("/", requireAuth, async (req, res): Promise<void> => {
-  const { search, dateFrom, dateTo, paymentMode, productType } = req.query as Record<string, string>;
+  const { search, dateFrom, dateTo, paymentMode, productType, status, saleType } = req.query as Record<string, string>;
 
   const rows = await db.select().from(salesTable)
     .leftJoin(productsTable, eq(salesTable.productId, productsTable.id))
@@ -91,6 +111,15 @@ router.get("/", requireAuth, async (req, res): Promise<void> => {
     if (dateFrom && s.saleDate < dateFrom) return false;
     if (dateTo && s.saleDate > dateTo) return false;
     if (paymentMode && s.paymentMode !== paymentMode) return false;
+    if (saleType && saleType !== "tous") {
+      if (!isSaleType(saleType)) return false;
+      if (s.saleType !== saleType) return false;
+    }
+    if (status && status !== "tous") {
+      if (!isSaleStatus(status)) return false;
+      if (status === "valides" && s.cancelled) return false;
+      if (status === "annulees" && !s.cancelled) return false;
+    }
     return true;
   });
 
@@ -261,7 +290,7 @@ router.post("/", requireAuth, async (req, res): Promise<void> => {
   res.status(201).json({ ...sale, amount: Number(sale.amount) });
 });
 
-// PATCH /api/sales/:id — edit client name, client phone, and vendor (admin + secretary)
+// PATCH /api/sales/:id - edit sale details (admin + secretary)
 router.patch("/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id));
   const currentRole = req.session!.role;
@@ -270,25 +299,34 @@ router.patch("/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const { clientName, clientPhone, vendorId } = req.body as {
+  const { clientName, clientPhone, vendorId, amount, paymentMode, saleType, saleDate, saleTime } = req.body as {
     clientName?: string | null;
     clientPhone?: string | null;
     vendorId?: number | string | null;
+    amount?: number | string | null;
+    paymentMode?: string | null;
+    saleType?: string | null;
+    saleDate?: string | null;
+    saleTime?: string | null;
   };
 
   const [sale] = await db.select().from(salesTable).where(eq(salesTable.id, id)).limit(1);
   if (!sale) { res.status(404).json({ error: "Vente non trouvée" }); return; }
   if (sale.cancelled) { res.status(400).json({ error: "Une vente annulée ne peut pas être modifiée" }); return; }
 
+  const [product] = await db.select().from(productsTable).where(eq(productsTable.id, sale.productId)).limit(1);
   const updates: Partial<typeof salesTable.$inferInsert> = {};
+  const changeSummary = [] as string[];
 
   if (clientName !== undefined) {
     const trimmed = typeof clientName === "string" ? clientName.trim() : "";
     updates.clientName = trimmed || null;
+    changeSummary.push(`client: ${sale.clientName || "anonyme"} -> ${updates.clientName || "anonyme"}`);
   }
   if (clientPhone !== undefined) {
     const trimmed = typeof clientPhone === "string" ? clientPhone.trim() : "";
     updates.clientPhone = trimmed || null;
+    changeSummary.push(`telephone: ${sale.clientPhone || "-"} -> ${updates.clientPhone || "-"}`);
   }
   if (vendorId !== undefined) {
     if (vendorId === null || vendorId === "" || vendorId === 0 || vendorId === "0") {
@@ -302,6 +340,60 @@ router.patch("/:id", requireAuth, async (req, res): Promise<void> => {
       updates.vendorId = vendor.id;
       updates.vendorName = vendor.name;
     }
+    changeSummary.push(`vendeur: ${sale.vendorName || "Aucun"} -> ${updates.vendorName || "Aucun"}`);
+  }
+  if (amount !== undefined) {
+    const normalizedAmount = Number(amount);
+    if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+      res.status(400).json({ error: "Montant invalide" });
+      return;
+    }
+    updates.amount = normalizedAmount.toFixed(2);
+    changeSummary.push(`montant: ${formatAmountForMovement(sale.amount)} -> ${formatAmountForMovement(normalizedAmount)}`);
+  }
+  if (paymentMode !== undefined) {
+    const normalizedPaymentMode = String(paymentMode || "").trim();
+    if (!isPaymentMode(normalizedPaymentMode)) {
+      res.status(400).json({ error: "Mode de paiement invalide" });
+      return;
+    }
+    updates.paymentMode = normalizedPaymentMode;
+    changeSummary.push(`paiement: ${sale.paymentMode} -> ${normalizedPaymentMode}`);
+  }
+  if (saleType !== undefined) {
+    const normalizedSaleType = String(saleType || "").trim();
+    if (!isSaleType(normalizedSaleType)) {
+      res.status(400).json({ error: "Type de vente invalide" });
+      return;
+    }
+    if (normalizedSaleType !== sale.saleType && (normalizedSaleType === "troc" || sale.saleType === "troc")) {
+      res.status(400).json({ error: "Le type troc ne peut pas etre modifie sur une vente existante" });
+      return;
+    }
+    if (normalizedSaleType === "troc" && product?.productType === "accessoire") {
+      res.status(400).json({ error: "Le troc n'est pas disponible pour les accessoires" });
+      return;
+    }
+    updates.saleType = normalizedSaleType;
+    changeSummary.push(`type: ${saleTypeLabel(sale.saleType)} -> ${saleTypeLabel(normalizedSaleType)}`);
+  }
+  if (saleDate !== undefined) {
+    const normalizedDate = String(saleDate || "").trim();
+    if (!isDateString(normalizedDate)) {
+      res.status(400).json({ error: "Date de vente invalide" });
+      return;
+    }
+    updates.saleDate = normalizedDate;
+    changeSummary.push(`date: ${sale.saleDate} -> ${normalizedDate}`);
+  }
+  if (saleTime !== undefined) {
+    const normalizedTime = normalizeTimeString(String(saleTime || "").trim());
+    if (!normalizedTime) {
+      res.status(400).json({ error: "Heure de vente invalide" });
+      return;
+    }
+    updates.saleTime = normalizedTime;
+    changeSummary.push(`heure: ${sale.saleTime.substring(0, 5)} -> ${normalizedTime.substring(0, 5)}`);
   }
 
   if (Object.keys(updates).length === 0) {
@@ -311,11 +403,9 @@ router.patch("/:id", requireAuth, async (req, res): Promise<void> => {
 
   const [updated] = await db.update(salesTable).set(updates).where(eq(salesTable.id, id)).returning();
 
-  const [product] = await db.select().from(productsTable).where(eq(productsTable.id, sale.productId)).limit(1);
-  const changeSummary = [] as string[];
-  if (clientName !== undefined) changeSummary.push(`client: ${clientName || "anonyme"}`);
-  if (clientPhone !== undefined) changeSummary.push(`téléphone: ${clientPhone || "—"}`);
-  if (vendorId !== undefined) changeSummary.push(`vendeur: ${updates.vendorName || "Aucun"}`);
+  if (updates.saleDate && product?.status === "vendu") {
+    await db.update(productsTable).set({ saleDate: updates.saleDate }).where(eq(productsTable.id, sale.productId));
+  }
 
   await db.insert(movementsTable).values({
     movementType: "modification_produit",
@@ -440,9 +530,11 @@ router.get("/:id/invoice", requireAuth, async (req, res): Promise<void> => {
   .product-table td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid #f0f0f0; }
   .total-section { background: linear-gradient(135deg, #f97316, #ea580c); color: white; border-radius: 10px; padding: 20px; text-align: right; }
   .total-label { font-size: 13px; opacity: 0.9; }
-  .total-amount { font-size: 32px; font-weight: 900; letter-spacing: -1px; }
-  .amount-words { font-size: 13px; margin-top: 8px; color: #444; font-style: italic; }
-  .footer { text-align: center; color: #aaa; font-size: 11px; margin-top: 32px; border-top: 1px solid #eee; padding-top: 16px; }
+  .total-amount { font-size: 32px; font-weight: 700; letter-spacing: 0; }
+  .amount-words { font-size: 13px; margin-top: 8px; color: white; font-style: italic; }
+  .footer { text-align: center; color: #444; font-size: 10.5px; line-height: 1.6; margin-top: 32px; border-top: 1px solid #eee; padding-top: 16px; }
+  .footer-title { font-weight: 800; color: #1a1a1a; letter-spacing: 0.2px; }
+  .print-button { margin-top: 12px; padding: 8px 20px; background: #f97316; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
   .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
   .badge-normal { background: #e8f5e9; color: #2e7d32; }
   .badge-troc { background: #fff3e0; color: #e65100; }
@@ -520,9 +612,11 @@ ${trocSection}${trocDeclarationSection}
 </div>
 
 <div class="footer">
-  <p>Merci pour votre confiance ! · THE HOMIES — Facture générée automatiquement</p>
-  <p style="margin-top:4px">Numéro de vente: #${id} · Ref produit: ${escapeHtml(product?.productId) || "—"}</p>
-  <button onclick="window.print()" style="margin-top:12px;padding:8px 20px;background:#f97316;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;">🖨️ Imprimer / Enregistrer PDF</button>
+  <p class="footer-title">VENTE D’APPAREILS ÉLECTRONIQUE & ACCESSOIRES</p>
+  <p>Tél. : (+237) 693 39 51 94 / 682 84 51 37 - Situé à : L’École publique Bonamoussadi</p>
+  <p>Email : Thehomiescm@gmail.com - NIU: M082518153603G</p>
+  <p>Réseaux sociaux : Facebook • TikTok • Instagram • WhatsApp • Snapchat - Site web: TheHomies.cm</p>
+  <button class="print-button" onclick="window.print()">🖨️ Imprimer / Enregistrer PDF</button>
 </div>
 </body>
 </html>`;

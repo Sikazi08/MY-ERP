@@ -11,4 +11,7 @@ search?: string;
 dateFrom?: string;
 dateTo?: string;
 paymentMode?: string;
+productType?: string;
+status?: string;
+saleType?: string;
 };

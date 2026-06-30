@@ -12,9 +12,18 @@ import { Input } from "@/components/ui/input";
 export default function Mouvements() {
   const { isAdmin } = useAuth();
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("tous");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
-  const { data: allMovements = [], isLoading } = useListMovements({ search: search || undefined }, { query: { queryKey: getListMovementsQueryKey({ search: search || undefined }) } });
+  const movementsQueryParams = {
+    search: search || undefined,
+    type: statusFilter !== "tous" ? statusFilter : undefined,
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo || undefined,
+  };
+  const { data: allMovements = [], isLoading } = useListMovements(movementsQueryParams, { query: { queryKey: getListMovementsQueryKey(movementsQueryParams) } });
   const total = allMovements.length;
   const totalPages = Math.ceil(total / pageSize);
   const movements = allMovements.slice((page - 1) * pageSize, page * pageSize);
@@ -29,6 +38,8 @@ export default function Mouvements() {
       case 'entree_caisse': return <Badge className="bg-green-500/20 text-green-500">Entrée Caisse</Badge>;
       case 'sortie_partenaire': return <Badge className="bg-orange-500/20 text-orange-500">Sortie Partenaire</Badge>;
       case 'retour_partenaire': return <Badge className="bg-teal-500/20 text-teal-500">Retour Partenaire</Badge>;
+      case 'modification_produit': return <Badge className="bg-yellow-500/20 text-yellow-500">Modification</Badge>;
+      case 'suppression_produit': return <Badge variant="outline">Suppression</Badge>;
       case 'annulation': return <Badge variant="destructive">Annulation</Badge>;
       default: return <Badge variant="outline">{type}</Badge>;
     }
@@ -46,16 +57,44 @@ export default function Mouvements() {
         )}
       </div>
 
-      <div className="flex gap-4 items-center bg-card p-4 rounded-lg border border-border">
+      <div className="flex flex-col lg:flex-row flex-wrap gap-3 items-center bg-card p-4 rounded-lg border border-border">
         <div className="relative w-full max-w-md">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
           <Input 
             placeholder="Rechercher..." 
             className="pl-9 bg-background border-border"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           />
         </div>
+        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
+          <SelectTrigger className="w-full sm:w-52 bg-background border-border">
+            <SelectValue placeholder="Statut" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="tous">Tous statuts</SelectItem>
+            <SelectItem value="achat">Achat stock</SelectItem>
+            <SelectItem value="vente">Vente</SelectItem>
+            <SelectItem value="entree_troc">Entrée troc</SelectItem>
+            <SelectItem value="depense">Dépense</SelectItem>
+            <SelectItem value="retrait_membre">Retrait membre</SelectItem>
+            <SelectItem value="entree_caisse">Entrée caisse</SelectItem>
+            <SelectItem value="sortie_partenaire">Sortie partenaire</SelectItem>
+            <SelectItem value="retour_partenaire">Retour partenaire</SelectItem>
+            <SelectItem value="modification_produit">Modification</SelectItem>
+            <SelectItem value="suppression_produit">Suppression</SelectItem>
+            <SelectItem value="annulation">Annulation</SelectItem>
+          </SelectContent>
+        </Select>
+        <div className="grid grid-cols-2 gap-2 w-full sm:w-auto">
+          <Input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }} className="bg-background border-border w-full sm:w-36" />
+          <Input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); }} className="bg-background border-border w-full sm:w-36" />
+        </div>
+        {(dateFrom || dateTo || statusFilter !== "tous") && (
+          <Button variant="ghost" size="sm" onClick={() => { setDateFrom(""); setDateTo(""); setStatusFilter("tous"); setPage(1); }}>
+            Effacer
+          </Button>
+        )}
       </div>
 
       <div className="rounded-lg border border-border bg-card overflow-x-auto">

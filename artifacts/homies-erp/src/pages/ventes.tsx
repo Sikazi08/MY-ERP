@@ -3,7 +3,7 @@ import { useAuth } from "@/lib/auth-context";
 import {
   useListSales, useCreateSale, useCancelSale,
   getListSalesQueryKey, useListProducts, getListProductsQueryKey,
-  useListSellers,
+  useListSellers, getListMovementsQueryKey,
 } from "@workspace/api-client-react";
 import type { SaleInput } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -56,6 +56,9 @@ export default function Ventes() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("tous");
+  const [statusFilter, setStatusFilter] = useState("tous");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [trocHasInvoice, setTrocHasInvoice] = useState(false);
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
@@ -73,6 +76,10 @@ export default function Ventes() {
   const [editClientName, setEditClientName] = useState("");
   const [editClientPhone, setEditClientPhone] = useState("");
   const [editVendorId, setEditVendorId] = useState("0");
+  const [editAmount, setEditAmount] = useState("");
+  const [editPaymentMode, setEditPaymentMode] = useState("Cash");
+  const [editSaleDate, setEditSaleDate] = useState("");
+  const [editSaleTime, setEditSaleTime] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
@@ -95,7 +102,13 @@ export default function Ventes() {
   const [showNameSugg, setShowNameSugg] = useState(false);
   const [showPhoneSugg, setShowPhoneSugg] = useState(false);
 
-  const salesQueryParams = { search: search || undefined, productType: typeFilter !== "tous" ? typeFilter : undefined };
+  const salesQueryParams = {
+    search: search || undefined,
+    productType: typeFilter !== "tous" ? typeFilter : undefined,
+    status: statusFilter !== "tous" ? statusFilter : undefined,
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo || undefined,
+  };
   const { data: allSales = [], isLoading } = useListSales(salesQueryParams, {
     query: { queryKey: getListSalesQueryKey(salesQueryParams) }
   });
@@ -181,6 +194,7 @@ export default function Ventes() {
         toast.success("Vente enregistrée avec succès ✓");
         queryClient.invalidateQueries({ queryKey: getListSalesQueryKey() });
         queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getListMovementsQueryKey() });
         setIsAddOpen(false);
         resetForm();
       },
@@ -195,11 +209,19 @@ export default function Ventes() {
     setEditClientName(s.clientName || "");
     setEditClientPhone(s.clientPhone || "");
     setEditVendorId(s.vendorId ? String(s.vendorId) : "0");
+    setEditAmount(String(s.amount ?? ""));
+    setEditPaymentMode(s.paymentMode || "Cash");
+    setEditSaleDate(s.saleDate || "");
+    setEditSaleTime((s.saleTime || "").substring(0, 5));
     setIsEditOpen(true);
   };
 
   const handleSaveEdit = async () => {
     if (!selectedSale) return;
+    if (!editAmount || Number(editAmount) <= 0) {
+      toast.error("Le montant doit être supérieur à 0");
+      return;
+    }
     setSavingEdit(true);
     try {
       const res = await fetch(`/api/sales/${selectedSale.id}`, {
@@ -210,6 +232,10 @@ export default function Ventes() {
           clientName: editClientName,
           clientPhone: editClientPhone,
           vendorId: editVendorId === "0" ? null : Number(editVendorId),
+          amount: editAmount ? Number(editAmount) : undefined,
+          paymentMode: editPaymentMode,
+          saleDate: editSaleDate || undefined,
+          saleTime: editSaleTime || undefined,
         }),
       });
       if (!res.ok) {
@@ -220,6 +246,7 @@ export default function Ventes() {
       toast.success("Vente modifiée avec succès ✓");
       setSelectedSale((prev: any) => (prev ? { ...prev, ...updated } : prev));
       queryClient.invalidateQueries({ queryKey: getListSalesQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getListMovementsQueryKey() });
       setIsEditOpen(false);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erreur lors de la modification");
@@ -236,6 +263,7 @@ export default function Ventes() {
           toast.success("Vente annulée avec succès");
           queryClient.invalidateQueries({ queryKey: getListSalesQueryKey() });
           queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getListMovementsQueryKey() });
         },
         onError: (e: unknown) => {
           const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
@@ -521,7 +549,7 @@ export default function Ventes() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 items-center bg-card p-4 rounded-lg border border-border">
+      <div className="flex flex-col lg:flex-row flex-wrap gap-3 items-center bg-card p-4 rounded-lg border border-border">
         <div className="relative w-full sm:flex-1">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Recherche (Client, Produit, IMEI...)" className="pl-9 bg-background border-border"
@@ -534,6 +562,25 @@ export default function Ventes() {
             <TabsTrigger value="accessoire"><Package className="h-3.5 w-3.5 mr-1" />Acc.</TabsTrigger>
           </TabsList>
         </Tabs>
+        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
+          <SelectTrigger className="w-full sm:w-40 bg-background border-border">
+            <SelectValue placeholder="Statut" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="tous">Tous statuts</SelectItem>
+            <SelectItem value="valides">Valide</SelectItem>
+            <SelectItem value="annulees">Annulée</SelectItem>
+          </SelectContent>
+        </Select>
+        <div className="grid grid-cols-2 gap-2 w-full sm:w-auto">
+          <Input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }} className="bg-background border-border w-full sm:w-36" />
+          <Input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); }} className="bg-background border-border w-full sm:w-36" />
+        </div>
+        {(dateFrom || dateTo || statusFilter !== "tous") && (
+          <Button variant="ghost" size="sm" onClick={() => { setDateFrom(""); setDateTo(""); setStatusFilter("tous"); setPage(1); }}>
+            Effacer
+          </Button>
+        )}
       </div>
 
       {/* Sales table */}
@@ -548,14 +595,15 @@ export default function Ventes() {
               <TableHead>Mode</TableHead>
               <TableHead>Type</TableHead>
               <TableHead className="text-right">Montant</TableHead>
+              <TableHead>Statut</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={8} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={9} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" /></TableCell></TableRow>
             ) : sales.length === 0 ? (
-              <TableRow><TableCell colSpan={8} className="h-24 text-center text-muted-foreground">Aucune vente trouvée.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={9} className="h-24 text-center text-muted-foreground">Aucune vente trouvée.</TableCell></TableRow>
             ) : (
               sales.map((sale) => {
                 const s = sale as any;
@@ -585,10 +633,17 @@ export default function Ventes() {
                     <TableCell><Badge variant="outline" className="bg-background">{sale.paymentMode}</Badge></TableCell>
                     <TableCell>
                       <Badge variant="secondary" className={sale.saleType === "troc" || sale.saleType === "fast_deal" ? "bg-primary/20 text-primary border-primary/20" : ""}>
-                        {sale.saleType === "troc" ? "Troc" : sale.saleType === "fast_deal" ? "Fast deal" : "Normal"}
+                        {sale.saleType === "troc" ? "Troc" : sale.saleType === "fast_deal" ? "Fast deal" : "Normale"}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right font-bold">{formatFCFA(sale.amount)}</TableCell>
+                    <TableCell>
+                      {sale.cancelled ? (
+                        <Badge variant="destructive" className="text-[10px]">Annulée</Badge>
+                      ) : (
+                        <Badge className="bg-green-500/20 text-green-500 text-[10px]">Valide</Badge>
+                      )}
+                    </TableCell>
                     <TableCell onClick={e => e.stopPropagation()}>
                       {!sale.cancelled ? (
                         <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10"
@@ -661,7 +716,7 @@ export default function Ventes() {
                   <div className="bg-muted/30 rounded-lg p-3 border border-border">
                     <p className="text-xs text-muted-foreground mb-1">Type</p>
                     <Badge className={s.saleType === "troc" || s.saleType === "fast_deal" ? "bg-primary/20 text-primary" : "bg-green-500/20 text-green-400"}>
-                      {s.saleType === "troc" ? "🔄 Troc" : s.saleType === "fast_deal" ? "⚡ Fast deal" : "✅ Normal"}
+                      {s.saleType === "troc" ? "🔄 Troc" : s.saleType === "fast_deal" ? "⚡ Fast deal" : "✅ Normale"}
                     </Badge>
                   </div>
                 </div>
@@ -745,7 +800,7 @@ export default function Ventes() {
                 <div className="pt-4 border-t border-border space-y-3">
                   {!s.cancelled && (
                     <Button className="w-full" variant="outline" onClick={() => openEditDialog(s)}>
-                      <Pencil className="h-4 w-4 mr-2" /> Modifier client / vendeur
+                      <Pencil className="h-4 w-4 mr-2" /> Modifier la vente
                     </Button>
                   )}
                   <Button className="w-full" variant="outline"
@@ -761,9 +816,39 @@ export default function Ventes() {
 
       {/* Edit client / vendor dialog (admin + secretary) */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="sm:max-w-[440px] bg-card border-border text-foreground">
+        <DialogContent className="sm:max-w-[560px] bg-card border-border text-foreground">
           <DialogHeader><DialogTitle>Modifier la vente</DialogTitle></DialogHeader>
           <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-amount">Montant</Label>
+                <Input id="edit-amount" type="number" min={1} value={editAmount}
+                  onChange={e => setEditAmount(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Mode de paiement</Label>
+                <Select value={editPaymentMode} onValueChange={setEditPaymentMode}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="OM">Orange Money</SelectItem>
+                    <SelectItem value="MOMO">Mobile Money</SelectItem>
+                    <SelectItem value="Cash">Cash</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-sale-date">Date</Label>
+                <Input id="edit-sale-date" type="date" value={editSaleDate}
+                  onChange={e => setEditSaleDate(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-sale-time">Heure</Label>
+                <Input id="edit-sale-time" type="time" value={editSaleTime}
+                  onChange={e => setEditSaleTime(e.target.value)} />
+              </div>
+            </div>
             <div className="space-y-1.5">
               <Label htmlFor="edit-client-name">Nom du client</Label>
               <Input id="edit-client-name" value={editClientName}

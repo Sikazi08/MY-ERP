@@ -1,12 +1,14 @@
 {
   "name": "workspace",
   "version": "0.0.0",
+  "packageManager": "pnpm@11.9.0",
   "license": "MIT",
   "scripts": {
     "preinstall": "node ./scripts/preinstall.mjs",
     "dev": "pnpm --parallel --filter @workspace/api-server --filter @workspace/homies-erp run dev",
     "dev:stop": "node ./scripts/stop-dev.mjs",
     "dev:restart": "pnpm run dev:stop && pnpm run dev",
+    "start": "pnpm --filter @workspace/api-server run start",
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"

@@ -3,6 +3,8 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
+import fs from "node:fs";
+import path from "node:path";
 import { pool } from "@workspace/db";
 import router from "./routes";
 import { logger } from "./lib/logger";
@@ -58,5 +60,14 @@ declare module "express-session" {
 }
 
 app.use("/api", router);
+
+const frontendDistPath = path.resolve(__dirname, "..", "..", "homies-erp", "dist", "public");
+
+if (fs.existsSync(frontendDistPath)) {
+  app.use(express.static(frontendDistPath));
+  app.get("*", (_req, res) => {
+    res.sendFile(path.join(frontendDistPath, "index.html"));
+  });
+}
 
 export default app;

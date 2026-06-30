@@ -8,6 +8,7 @@
 
 export type ListMovementsParams = {
 type?: string;
+status?: string;
 dateFrom?: string;
 dateTo?: string;
 search?: string;

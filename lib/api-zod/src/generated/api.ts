@@ -235,7 +235,10 @@ export const ListSalesQueryParams = zod.object({
   "search": zod.coerce.string().optional(),
   "dateFrom": zod.coerce.string().optional(),
   "dateTo": zod.coerce.string().optional(),
-  "paymentMode": zod.coerce.string().optional()
+  "paymentMode": zod.coerce.string().optional(),
+  "productType": zod.coerce.string().optional(),
+  "status": zod.coerce.string().optional(),
+  "saleType": zod.coerce.string().optional()
 })
 
 export const ListSalesResponseItem = zod.object({
@@ -700,6 +703,7 @@ export const UpdateClientResponse = zod.object({
  */
 export const ListMovementsQueryParams = zod.object({
   "type": zod.coerce.string().optional(),
+  "status": zod.coerce.string().optional(),
   "dateFrom": zod.coerce.string().optional(),
   "dateTo": zod.coerce.string().optional(),
   "search": zod.coerce.string().optional()
@@ -1033,5 +1037,3 @@ export const ImportClientsResponse = zod.object({
   "duplicateNames": zod.array(zod.string()).optional(),
   "errorMessages": zod.array(zod.string()).optional()
 })
-
-

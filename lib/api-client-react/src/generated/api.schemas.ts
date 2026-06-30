@@ -500,6 +500,9 @@ search?: string;
 dateFrom?: string;
 dateTo?: string;
 paymentMode?: string;
+productType?: string;
+status?: string;
+saleType?: string;
 };
 
 export type ListExpensesParams = {
@@ -513,6 +516,7 @@ search?: string;
 
 export type ListMovementsParams = {
 type?: string;
+status?: string;
 dateFrom?: string;
 dateTo?: string;
 search?: string;
@@ -559,4 +563,3 @@ q: string;
 export type ImportClientsBody = {
   file?: Blob;
 };
-

@@ -56,6 +56,7 @@ export default function Ventes() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("tous");
+  const [saleTypeFilter, setSaleTypeFilter] = useState("tous");
   const [statusFilter, setStatusFilter] = useState("tous");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -105,6 +106,7 @@ export default function Ventes() {
   const salesQueryParams = {
     search: search || undefined,
     productType: typeFilter !== "tous" ? typeFilter : undefined,
+    saleType: saleTypeFilter !== "tous" ? saleTypeFilter : undefined,
     status: statusFilter !== "tous" ? statusFilter : undefined,
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
@@ -572,12 +574,23 @@ export default function Ventes() {
             <SelectItem value="annulees">Annulée</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={saleTypeFilter} onValueChange={(v) => { setSaleTypeFilter(v); setPage(1); }}>
+          <SelectTrigger className="w-full sm:w-44 bg-background border-border">
+            <SelectValue placeholder="Type de vente" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="tous">Tous types</SelectItem>
+            <SelectItem value="normal">Ventes normales</SelectItem>
+            <SelectItem value="troc">Troc</SelectItem>
+            <SelectItem value="fast_deal">Fast deal</SelectItem>
+          </SelectContent>
+        </Select>
         <div className="grid grid-cols-2 gap-2 w-full sm:w-auto">
           <Input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }} className="bg-background border-border w-full sm:w-36" />
           <Input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); }} className="bg-background border-border w-full sm:w-36" />
         </div>
-        {(dateFrom || dateTo || statusFilter !== "tous") && (
-          <Button variant="ghost" size="sm" onClick={() => { setDateFrom(""); setDateTo(""); setStatusFilter("tous"); setPage(1); }}>
+        {(dateFrom || dateTo || statusFilter !== "tous" || saleTypeFilter !== "tous") && (
+          <Button variant="ghost" size="sm" onClick={() => { setDateFrom(""); setDateTo(""); setStatusFilter("tous"); setSaleTypeFilter("tous"); setPage(1); }}>
             Effacer
           </Button>
         )}

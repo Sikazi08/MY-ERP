@@ -12,4 +12,5 @@ export type SaleInputSaleType = typeof SaleInputSaleType[keyof typeof SaleInputS
 export const SaleInputSaleType = {
   normal: 'normal',
   troc: 'troc',
+  fast_deal: 'fast_deal',
 } as const;

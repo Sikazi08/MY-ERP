@@ -30,6 +30,12 @@ const COLORS = ["Noir", "Blanc", "Bleu", "Rouge", "Or", "Argent", "Vert", "Gris"
 const PAGE_SIZE = 25;
 
 interface ClientSuggestion { id: number; fullName: string; phone: string | null; }
+type SaleFormInput = SaleInput & { quantitySold?: number; saleDate?: string };
+
+function getLocalDateInputValue(date = new Date()) {
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return localDate.toISOString().split("T")[0];
+}
 
 function useClientAutocomplete() {
   const [suggestions, setSuggestions] = useState<ClientSuggestion[]>([]);
@@ -129,8 +135,8 @@ export default function Ventes() {
   const createMutation = useCreateSale();
   const cancelMutation = useCancelSale();
 
-  const form = useForm<SaleInput & { quantitySold?: number }>({
-    defaultValues: { saleType: "normal", paymentMode: "Cash", amount: 0, clientName: "", clientPhone: "" },
+  const form = useForm<SaleFormInput>({
+    defaultValues: { saleType: "normal", paymentMode: "Cash", amount: 0, clientName: "", clientPhone: "", saleDate: getLocalDateInputValue() },
   });
 
   const watchSaleType = form.watch("saleType");
@@ -159,7 +165,7 @@ export default function Ventes() {
   };
 
   const resetForm = () => {
-    form.reset({ saleType: "normal", paymentMode: "Cash", amount: 0, clientName: "", clientPhone: "" });
+    form.reset({ saleType: "normal", paymentMode: "Cash", amount: 0, clientName: "", clientPhone: "", saleDate: getLocalDateInputValue() });
     setTrocHasInvoice(false);
     setInvoiceFile(null);
     setDeclFile(null);
@@ -175,7 +181,7 @@ export default function Ventes() {
     await fetch(`/api/attachments/products/${productId}`, { method: "POST", credentials: "include", body: fd });
   };
 
-  const onSubmit = (data: SaleInput & { quantitySold?: number }) => {
+  const onSubmit = (data: SaleFormInput) => {
     if (!data.productId) { form.setError("productId" as any, { message: "Veuillez sélectionner un produit" }); return; }
     if (!data.amount || data.amount <= 0) { form.setError("amount", { message: "Le montant doit être supérieur à 0" }); return; }
     if (data.saleType === "troc" && !data.trocProduct) { form.setError("trocProduct", { message: "Le nom de l'appareil est obligatoire" }); return; }
@@ -332,6 +338,13 @@ export default function Ventes() {
                           </SelectContent>
                         </Select><FormMessage /></FormItem>
                     )} />
+                    <FormField control={form.control} name="saleDate"
+                      rules={{ required: "La date de vente est obligatoire" }}
+                      render={({ field }) => (
+                        <FormItem><FormLabel>Date de vente</FormLabel>
+                          <FormControl><Input type="date" max={getLocalDateInputValue()} {...field} value={field.value ?? ""} /></FormControl>
+                          <FormMessage /></FormItem>
+                      )} />
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

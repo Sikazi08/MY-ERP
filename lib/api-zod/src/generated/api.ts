@@ -261,7 +261,7 @@ export const ListSalesResponseItem = zod.object({
   "saleDate": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 }).optional(),
-  "saleType": zod.enum(['normal', 'troc']),
+  "saleType": zod.enum(['normal', 'troc', 'fast_deal']),
   "paymentMode": zod.enum(['OM', 'MOMO', 'Cash']),
   "amount": zod.number(),
   "clientId": zod.number().nullish(),
@@ -292,9 +292,10 @@ export const ListSalesResponse = zod.array(ListSalesResponseItem)
  */
 export const CreateSaleBody = zod.object({
   "productId": zod.number(),
-  "saleType": zod.enum(['normal', 'troc']),
+  "saleType": zod.enum(['normal', 'troc', 'fast_deal']),
   "paymentMode": zod.enum(['OM', 'MOMO', 'Cash']),
   "amount": zod.number(),
+  "saleDate": zod.string().optional(),
   "clientName": zod.string().optional(),
   "clientPhone": zod.string().optional(),
   "vendorId": zod.number().optional(),
@@ -338,7 +339,7 @@ export const CancelSaleResponse = zod.object({
   "saleDate": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 }).optional(),
-  "saleType": zod.enum(['normal', 'troc']),
+  "saleType": zod.enum(['normal', 'troc', 'fast_deal']),
   "paymentMode": zod.enum(['OM', 'MOMO', 'Cash']),
   "amount": zod.number(),
   "clientId": zod.number().nullish(),
@@ -649,7 +650,7 @@ export const GetClientResponse = zod.object({
   "saleDate": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 }).optional(),
-  "saleType": zod.enum(['normal', 'troc']),
+  "saleType": zod.enum(['normal', 'troc', 'fast_deal']),
   "paymentMode": zod.enum(['OM', 'MOMO', 'Cash']),
   "amount": zod.number(),
   "clientId": zod.number().nullish(),
@@ -910,7 +911,7 @@ export const GetSellerSalesResponseItem = zod.object({
   "saleDate": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 }).optional(),
-  "saleType": zod.enum(['normal', 'troc']),
+  "saleType": zod.enum(['normal', 'troc', 'fast_deal']),
   "paymentMode": zod.enum(['OM', 'MOMO', 'Cash']),
   "amount": zod.number(),
   "clientId": zod.number().nullish(),
@@ -981,7 +982,7 @@ export const GlobalSearchResponse = zod.object({
   "saleDate": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 }).optional(),
-  "saleType": zod.enum(['normal', 'troc']),
+  "saleType": zod.enum(['normal', 'troc', 'fast_deal']),
   "paymentMode": zod.enum(['OM', 'MOMO', 'Cash']),
   "amount": zod.number(),
   "clientId": zod.number().nullish(),

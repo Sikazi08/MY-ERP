@@ -140,7 +140,7 @@ router.get("/client-search", requireAdmin, async (req, res): Promise<void> => {
 router.post("/", requireAuth, async (req, res): Promise<void> => {
   const {
     productId, saleType, paymentMode, amount, clientName, clientPhone,
-    vendorId, vendorName, quantitySold = 1,
+    vendorId, vendorName, quantitySold = 1, saleDate,
     trocImei, trocProduct, trocBrand, trocCapacity, trocColor, trocHasInvoice,
   } = req.body;
 
@@ -179,6 +179,11 @@ router.post("/", requireAuth, async (req, res): Promise<void> => {
   }
 
   const today = nowDateStr();
+  const selectedSaleDate = saleDate ? String(saleDate).trim() : today;
+  if (!isDateString(selectedSaleDate)) {
+    res.status(400).json({ error: "Date de vente invalide" });
+    return;
+  }
   const time = nowTimeStr();
 
   let clientId: number | null = null;
@@ -223,7 +228,7 @@ router.post("/", requireAuth, async (req, res): Promise<void> => {
       capacity: trocCapacity || null,
       color: trocColor || null,
       status: "en_stock",
-      entryDate: today,
+      entryDate: selectedSaleDate,
       purchasePrice: trocPurchasePrice !== null ? String(trocPurchasePrice) : null,
       productType: "téléphone",
       quantity: 1,
@@ -234,7 +239,7 @@ router.post("/", requireAuth, async (req, res): Promise<void> => {
 
     await db.insert(movementsTable).values({
       movementType: "entree_troc",
-      movementDate: today,
+      movementDate: selectedSaleDate,
       movementTime: time,
       userId: req.session!.userId!,
       productId: trocRow.id,
@@ -255,7 +260,7 @@ router.post("/", requireAuth, async (req, res): Promise<void> => {
     sellerId: req.session!.userId!,
     vendorId: resolvedVendorId,
     vendorName: resolvedVendorName,
-    saleDate: today,
+    saleDate: selectedSaleDate,
     saleTime: time,
     cancelled: false,
     trocProductId,
@@ -269,16 +274,16 @@ router.post("/", requireAuth, async (req, res): Promise<void> => {
       .set({
         quantity: Math.max(0, newQty),
         status: newQty <= 0 ? "vendu" : "en_stock",
-        saleDate: newQty <= 0 ? today : undefined,
+        saleDate: newQty <= 0 ? selectedSaleDate : undefined,
       })
       .where(eq(productsTable.id, parseInt(productId)));
   } else {
-    await db.update(productsTable).set({ status: "vendu", saleDate: today }).where(eq(productsTable.id, parseInt(productId)));
+    await db.update(productsTable).set({ status: "vendu", saleDate: selectedSaleDate }).where(eq(productsTable.id, parseInt(productId)));
   }
 
   await db.insert(movementsTable).values({
     movementType: "vente",
-    movementDate: today,
+    movementDate: selectedSaleDate,
     movementTime: time,
     userId: req.session!.userId!,
     productId: parseInt(productId),

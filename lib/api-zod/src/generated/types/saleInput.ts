@@ -13,6 +13,7 @@ export interface SaleInput {
   saleType: SaleInputSaleType;
   paymentMode: SaleInputPaymentMode;
   amount: number;
+  saleDate?: string;
   clientName?: string;
   clientPhone?: string;
   vendorId?: number;

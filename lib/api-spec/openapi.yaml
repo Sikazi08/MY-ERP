@@ -1199,6 +1199,10 @@ components:
           enum: [OM, MOMO, Cash]
         amount:
           type: number
+        saleDate:
+          type: string
+          format: date
+          description: Date effective de la vente. Par defaut, la date du jour.
         clientName:
           type: string
         clientPhone:

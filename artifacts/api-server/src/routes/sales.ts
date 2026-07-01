@@ -34,6 +34,39 @@ function saleTypeLabel(type: string | null | undefined): string {
   return "Vente normale";
 }
 
+function invoiceAcceptanceClause(type: string): { title: string; paragraphs: string[] } {
+  if (type === "troc") {
+    return {
+      title: "CLAUSE D'ACCEPTATION – TROC",
+      paragraphs: [
+        "Le client reconnaît avoir reçu toutes les informations utiles relatives au téléphone remis dans le cadre de la présente opération de troc et confirme qu'il correspond à son choix.",
+        "En signant la présente facture, le client reconnaît avoir remis et reçu les appareils convenus, reçu la présente facture et accepté les conditions de l'opération.",
+        "La présente opération est régie par les dispositions légales et réglementaires en vigueur.",
+      ],
+    };
+  }
+
+  if (type === "fast_deal") {
+    return {
+      title: "CLAUSE D'ACCEPTATION – OFFRE « FAST DEAL »",
+      paragraphs: [
+        "Le client reconnaît avoir été informé que le téléphone objet de la présente facture est proposé dans le cadre de l'offre « FAST DEAL », à un tarif préférentiel tenant compte de son état général et des éventuels défauts apparents qui lui ont été présentés avant la vente.",
+        "En signant la présente facture, le client confirme que le téléphone correspond à son choix, reconnaît avoir reçu les informations nécessaires, ainsi que la présente facture, et accepte les conditions de la vente.",
+        "La présente opération est régie par les dispositions légales et réglementaires en vigueur.",
+      ],
+    };
+  }
+
+  return {
+    title: "CLAUSE D'ACCEPTATION – VENTE",
+    paragraphs: [
+      "Le client reconnaît avoir reçu toutes les informations utiles relatives au téléphone objet de la présente facture et confirme que celui-ci correspond à son choix.",
+      "En signant la présente facture, le client reconnaît avoir reçu le téléphone, ses accessoires éventuels et la présente facture, et accepte les conditions de la vente.",
+      "La présente opération est régie par les dispositions légales et réglementaires en vigueur.",
+    ],
+  };
+}
+
 function isSaleType(value: unknown): value is SaleType {
   return saleTypes.includes(value as SaleType);
 }
@@ -476,8 +509,17 @@ router.get("/:id/invoice", requireAuth, async (req, res): Promise<void> => {
   const paymentLabel: Record<string, string> = { OM: "Orange Money", MOMO: "Mobile Money", Cash: "Cash / Espèces" };
 
   const isTroc = sale.saleType === "troc";
-  const soldTitle = isTroc ? "📱 Téléphone pris par le client" : "Produit vendu";
+  const isFastDeal = sale.saleType === "fast_deal";
+  const soldTitle = isTroc ? "📱 Téléphone pris par le client" : isFastDeal ? "Produit vendu - Fast deal" : "Produit vendu";
+  const invoiceTypeLabel = isTroc ? "🔄 Troc" : isFastDeal ? "⚡ Fast deal" : "✅ Vente normale";
+  const invoiceBadgeClass = isTroc ? "badge-troc" : isFastDeal ? "badge-fast-deal" : "badge-normal";
   const amountInWords = formatAmountWithWords(Number(sale.amount));
+  const acceptanceClause = invoiceAcceptanceClause(sale.saleType);
+  const acceptanceClauseSection = `
+<div class="section acceptance-clause">
+  <div class="section-title">${escapeHtml(acceptanceClause.title)}</div>
+  ${acceptanceClause.paragraphs.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join("")}
+</div>`;
   const trocSection = isTroc && trocProduct ? `
 <div class="section">
   <div class="section-title">🔄 Téléphone remis par le client (Troc)</div>
@@ -499,14 +541,6 @@ router.get("/:id/invoice", requireAuth, async (req, res): Promise<void> => {
   </table>
 </div>` : "";
 
-  const trocDeclarationSection = isTroc ? `
-<div class="section">
-  <div class="section-title">📝 Déclaration des parties</div>
-  <p style="font-size:13px; line-height:1.7; color:#333; text-align:justify;">
-    Nous soussignés, <strong>${escapeHtml(sale.clientName) || "Client anonyme"}</strong> et THE HOMIES, déclarons que l’échange décrit ci-dessus a été effectué librement, volontairement et sans contestation. Les informations relatives au téléphone remis en troc et à la vente effectuée sont exactes et conformes à la réalité.
-  </p>
-</div>` : "";
-
   const html = `<!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -514,7 +548,7 @@ router.get("/:id/invoice", requireAuth, async (req, res): Promise<void> => {
 <title>Facture #${String(id).padStart(5, "0")}</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; color: #1a1a1a; background: white; padding: 40px; max-width: 700px; margin: 0 auto; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #1a1a1a; background: white; padding: 40px; max-width: 700px; min-height: 100vh; margin: 0 auto; display: flex; flex-direction: column; }
   .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #f97316; padding-bottom: 20px; margin-bottom: 24px; }
   .brand-wrap { display: flex; align-items: center; gap: 14px; }
   .logo { height: 60px; width: auto; object-fit: contain; }
@@ -537,12 +571,15 @@ router.get("/:id/invoice", requireAuth, async (req, res): Promise<void> => {
   .total-label { font-size: 13px; opacity: 0.9; }
   .total-amount { font-size: 32px; font-weight: 700; letter-spacing: 0; }
   .amount-words { font-size: 13px; margin-top: 8px; color: white; font-style: italic; }
-  .footer { text-align: center; color: #444; font-size: 10.5px; line-height: 1.6; margin-top: 32px; border-top: 1px solid #eee; padding-top: 16px; }
+  .acceptance-clause { border: 1px solid #eee; border-radius: 8px; padding: 14px; background: #fafafa; }
+  .acceptance-clause p { font-size: 12.5px; line-height: 1.55; color: #333; text-align: justify; margin-top: 8px; }
+  .footer { text-align: center; color: #444; font-size: 10.5px; line-height: 1.6; margin-top: auto; border-top: 1px solid #eee; padding-top: 16px; page-break-inside: avoid; }
   .footer-title { font-weight: 800; color: #1a1a1a; letter-spacing: 0.2px; }
   .print-button { margin-top: 12px; padding: 8px 20px; background: #f97316; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
   .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
   .badge-normal { background: #e8f5e9; color: #2e7d32; }
   .badge-troc { background: #fff3e0; color: #e65100; }
+  .badge-fast-deal { background: #eef2ff; color: #3730a3; }
   .badge-cancelled { background: #ffebee; color: #c62828; }
   @page { margin: 0; }
   @media print {
@@ -580,7 +617,7 @@ router.get("/:id/invoice", requireAuth, async (req, res): Promise<void> => {
         <div class="info-value">${escapeHtml(paymentLabel[sale.paymentMode] || sale.paymentMode)}</div>
         <div class="info-label" style="margin-top:8px">Type</div>
         <div class="info-value">
-          <span class="badge ${sale.saleType === "troc" ? "badge-troc" : "badge-normal"}">${sale.saleType === "troc" ? "🔄 Troc" : "✅ Vente normale"}</span>
+          <span class="badge ${invoiceBadgeClass}">${invoiceTypeLabel}</span>
           ${sale.cancelled ? '<span class="badge badge-cancelled" style="margin-left:4px">❌ Annulée</span>' : ""}
         </div>
         ${sale.vendorName ? `<div class="info-label" style="margin-top:8px">Vendeur</div><div class="info-value">${escapeHtml(sale.vendorName)}</div>` : ""}
@@ -589,7 +626,7 @@ router.get("/:id/invoice", requireAuth, async (req, res): Promise<void> => {
   </div>
 </div>
 
-${trocSection}${trocDeclarationSection}
+${trocSection}
 <div class="section">
   <div class="section-title">${soldTitle}</div>
   <table class="product-table">
@@ -616,6 +653,7 @@ ${trocSection}${trocDeclarationSection}
   <div class="amount-words"><strong>Montant en toutes lettres :</strong> ${escapeHtml(amountInWords)}</div>
 </div>
 
+${acceptanceClauseSection}
 <div class="footer">
   <p class="footer-title">VENTE D’APPAREILS ÉLECTRONIQUE & ACCESSOIRES</p>
   <p>Tél. : (+237) 693 39 51 94 / 682 84 51 37 - Situé à : L’École publique Bonamoussadi</p>

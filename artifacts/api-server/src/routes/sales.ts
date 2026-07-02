@@ -34,12 +34,16 @@ function saleTypeLabel(type: string | null | undefined): string {
   return "Vente normale";
 }
 
-function invoiceAcceptanceClause(type: string): { title: string; paragraphs: string[] } {
+function invoiceAcceptanceClause(type: string, productType?: string | null): { title: string; paragraphs: string[] } {
+  const isAccessory = productType === "accessoire";
+  const itemWithArticle = isAccessory ? "l'appareil" : "le téléphone";
+  const itemObjectPhrase = isAccessory ? "à l'appareil" : "au téléphone";
+
   if (type === "troc") {
     return {
       title: "CLAUSE D'ACCEPTATION – TROC",
       paragraphs: [
-        "Le client reconnaît avoir reçu toutes les informations utiles relatives à l'appareil remis dans le cadre de la présente opération de troc et confirme qu'il correspond à son choix.",
+        `Le client reconnaît avoir reçu toutes les informations utiles relatives ${itemObjectPhrase} remis dans le cadre de la présente opération de troc et confirme qu'il correspond à son choix.`,
         "En signant la présente facture, le client reconnaît avoir remis et reçu les appareils convenus, reçu la présente facture et accepté les conditions de l'opération.",
         "La présente opération est régie par les dispositions légales et réglementaires en vigueur.",
       ],
@@ -50,8 +54,8 @@ function invoiceAcceptanceClause(type: string): { title: string; paragraphs: str
     return {
       title: "CLAUSE D'ACCEPTATION – OFFRE « FAST DEAL »",
       paragraphs: [
-        "Le client reconnaît avoir été informé que l'appareil objet de la présente facture est proposé dans le cadre de l'offre « FAST DEAL », à un tarif préférentiel tenant compte de son état général et des éventuels défauts apparents qui lui ont été présentés avant la vente.",
-        "En signant la présente facture, le client confirme que l'appareil correspond à son choix, reconnaît avoir reçu les informations nécessaires, ainsi que la présente facture, et accepte les conditions de la vente.",
+        `Le client reconnaît avoir été informé que ${itemWithArticle} objet de la présente facture est proposé dans le cadre de l'offre « FAST DEAL », à un tarif préférentiel tenant compte de son état général et des éventuels défauts apparents qui lui ont été présentés avant la vente.`,
+        `En signant la présente facture, le client confirme que ${itemWithArticle} correspond à son choix, reconnaît avoir reçu les informations nécessaires, ainsi que la présente facture, et accepte les conditions de la vente.`,
         "La présente opération est régie par les dispositions légales et réglementaires en vigueur.",
       ],
     };
@@ -60,8 +64,8 @@ function invoiceAcceptanceClause(type: string): { title: string; paragraphs: str
   return {
     title: "CLAUSE D'ACCEPTATION – VENTE",
     paragraphs: [
-      "Le client reconnaît avoir reçu toutes les informations utiles relatives à l'appareil objet de la présente facture et confirme que celui-ci correspond à son choix.",
-      "En signant la présente facture, le client reconnaît avoir reçu l'appareil, ses accessoires éventuels et la présente facture, et accepte les conditions de la vente.",
+      `Le client reconnaît avoir reçu toutes les informations utiles relatives ${itemObjectPhrase} objet de la présente facture et confirme que celui-ci correspond à son choix.`,
+      `En signant la présente facture, le client reconnaît avoir reçu ${itemWithArticle}, ses accessoires éventuels et la présente facture, et accepte les conditions de la vente.`,
       "La présente opération est régie par les dispositions légales et réglementaires en vigueur.",
     ],
   };
@@ -572,7 +576,7 @@ router.get("/:id/invoice", requireAuth, async (req, res): Promise<void> => {
   const invoiceTypeLabel = isTroc ? "🔄 Troc" : isFastDeal ? "⚡ Fast deal" : "✅ Vente normale";
   const invoiceBadgeClass = isTroc ? "badge-troc" : isFastDeal ? "badge-fast-deal" : "badge-normal";
   const amountInWords = formatAmountWithWords(Number(sale.amount));
-  const acceptanceClause = invoiceAcceptanceClause(sale.saleType);
+  const acceptanceClause = invoiceAcceptanceClause(sale.saleType, product?.productType);
   const acceptanceClauseSection = `
 <div class="section acceptance-clause">
   <div class="section-title">${escapeHtml(acceptanceClause.title)}</div>

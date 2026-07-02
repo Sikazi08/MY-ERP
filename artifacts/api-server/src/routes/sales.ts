@@ -633,7 +633,7 @@ router.get("/:id/invoice", requireAuth, async (req, res): Promise<void> => {
   .total-label { font-size: 13px; opacity: 0.9; }
   .total-amount { font-size: 32px; font-weight: 700; letter-spacing: 0; }
   .amount-words { font-size: 13px; margin-top: 8px; color: white; font-style: italic; }
-  .acceptance-clause { border: 1px solid #eee; border-radius: 8px; padding: 14px; background: #fafafa; }
+  .acceptance-clause { border: 1px solid #eee; border-radius: 8px; padding: 14px; background: #fafafa; margin-top: 40px; }
   .acceptance-clause p { font-size: 12.5px; line-height: 1.55; color: #333; text-align: justify; margin-top: 8px; }
   .footer { text-align: center; color: #444; font-size: 10.5px; line-height: 1.6; margin-top: auto; border-top: 1px solid #eee; padding-top: 16px; page-break-inside: avoid; }
   .footer-title { font-weight: 800; color: #1a1a1a; letter-spacing: 0.2px; }

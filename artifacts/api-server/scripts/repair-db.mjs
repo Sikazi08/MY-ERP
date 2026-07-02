@@ -107,24 +107,74 @@ const migrations = [
     `,
   },
   {
-    name: "products.unique_phone_imei",
+    name: "products.prevent_duplicate_phone_imei_trigger",
     sql: `
-      create unique index if not exists products_unique_phone_imei
-      on products (imei)
-      where product_type = 'téléphone' and quantity <> 0 and imei is not null and trim(imei) <> ''
+      create or replace function prevent_duplicate_active_phone_imei()
+      returns trigger
+      language plpgsql
+      as $$
+      begin
+        if new.product_type = 'téléphone'
+           and new.quantity <> 0
+           and new.imei is not null
+           and trim(new.imei) <> ''
+           and exists (
+             select 1
+             from products p
+             where p.id <> coalesce(new.id, -1)
+               and p.product_type = 'téléphone'
+               and p.quantity <> 0
+               and p.imei = new.imei
+           ) then
+          raise exception 'Ce téléphone existe déjà en stock (IMEI déjà enregistré).'
+            using errcode = '23505', constraint = 'products_unique_phone_imei';
+        end if;
+        return new;
+      end;
+      $$;
+
+      drop trigger if exists products_prevent_duplicate_active_phone_imei on products;
+      create trigger products_prevent_duplicate_active_phone_imei
+      before insert or update of imei, product_type, quantity
+      on products
+      for each row
+      execute function prevent_duplicate_active_phone_imei();
     `,
   },
   {
-    name: "products.unique_active_accessory_identity",
+    name: "products.prevent_duplicate_accessory_trigger",
     sql: `
-      create unique index if not exists products_unique_active_accessory_identity
-      on products (
-        lower(trim(product)),
-        coalesce(lower(trim(brand)), ''),
-        coalesce(lower(trim(capacity)), ''),
-        coalesce(lower(trim(color)), '')
-      )
-      where product_type = 'accessoire' and quantity <> 0
+      create or replace function prevent_duplicate_active_accessory_identity()
+      returns trigger
+      language plpgsql
+      as $$
+      begin
+        if new.product_type = 'accessoire'
+           and new.quantity <> 0
+           and exists (
+             select 1
+             from products p
+             where p.id <> coalesce(new.id, -1)
+               and p.product_type = 'accessoire'
+               and p.quantity <> 0
+               and lower(trim(p.product)) = lower(trim(new.product))
+               and coalesce(lower(trim(p.brand)), '') = coalesce(lower(trim(new.brand)), '')
+               and coalesce(lower(trim(p.capacity)), '') = coalesce(lower(trim(new.capacity)), '')
+               and coalesce(lower(trim(p.color)), '') = coalesce(lower(trim(new.color)), '')
+           ) then
+          raise exception 'Cet accessoire existe déjà en stock. Souhaitez-vous simplement ajouter cette quantité au stock existant ?'
+            using errcode = '23505', constraint = 'products_unique_active_accessory_identity';
+        end if;
+        return new;
+      end;
+      $$;
+
+      drop trigger if exists products_prevent_duplicate_active_accessory_identity on products;
+      create trigger products_prevent_duplicate_active_accessory_identity
+      before insert or update of product, brand, capacity, color, product_type, quantity
+      on products
+      for each row
+      execute function prevent_duplicate_active_accessory_identity();
     `,
   },
 ];

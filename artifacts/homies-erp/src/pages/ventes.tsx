@@ -528,7 +528,16 @@ export default function Ventes() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField control={form.control} name="saleType" render={({ field }) => (
                       <FormItem><FormLabel>Type de vente</FormLabel>
-                        <Select onValueChange={(v) => { field.onChange(v); if (v !== "troc") { setTrocHasInvoice(false); setInvoiceFile(null); } }} value={field.value}>
+                        <Select onValueChange={(v) => {
+                          field.onChange(v);
+                          if (v !== "troc") {
+                            setTrocHasInvoice(null);
+                            setInvoiceFiles([]);
+                            setDeclFiles([]);
+                            setCniFiles([]);
+                            setSaleUploadProgress({});
+                          }
+                        }} value={field.value}>
                           <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                           <SelectContent>
                             <SelectItem value="normal">Vente normale</SelectItem>

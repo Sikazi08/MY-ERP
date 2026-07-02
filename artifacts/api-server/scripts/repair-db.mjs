@@ -61,6 +61,72 @@ const migrations = [
     name: "products.phone_state",
     sql: `alter table if exists products add column if not exists phone_state text`,
   },
+  {
+    name: "products.individual_name",
+    sql: `alter table if exists products add column if not exists individual_name text`,
+  },
+  {
+    name: "products.individual_phone",
+    sql: `alter table if exists products add column if not exists individual_phone text`,
+  },
+  {
+    name: "products.merge_duplicate_active_accessories",
+    sql: `
+      with active_accessories as (
+        select
+          id,
+          quantity,
+          min(id) over (
+            partition by
+              lower(trim(product)),
+              coalesce(lower(trim(brand)), ''),
+              coalesce(lower(trim(capacity)), ''),
+              coalesce(lower(trim(color)), '')
+          ) as keep_id,
+          sum(quantity) over (
+            partition by
+              lower(trim(product)),
+              coalesce(lower(trim(brand)), ''),
+              coalesce(lower(trim(capacity)), ''),
+              coalesce(lower(trim(color)), '')
+          ) as total_quantity,
+          count(*) over (
+            partition by
+              lower(trim(product)),
+              coalesce(lower(trim(brand)), ''),
+              coalesce(lower(trim(capacity)), ''),
+              coalesce(lower(trim(color)), '')
+          ) as duplicate_count
+        from products
+        where product_type = 'accessoire' and quantity <> 0
+      )
+      update products p
+      set quantity = case when p.id = a.keep_id then a.total_quantity else 0 end
+      from active_accessories a
+      where p.id = a.id and a.duplicate_count > 1
+    `,
+  },
+  {
+    name: "products.unique_phone_imei",
+    sql: `
+      create unique index if not exists products_unique_phone_imei
+      on products (imei)
+      where product_type = 'téléphone' and quantity <> 0 and imei is not null and trim(imei) <> ''
+    `,
+  },
+  {
+    name: "products.unique_active_accessory_identity",
+    sql: `
+      create unique index if not exists products_unique_active_accessory_identity
+      on products (
+        lower(trim(product)),
+        coalesce(lower(trim(brand)), ''),
+        coalesce(lower(trim(capacity)), ''),
+        coalesce(lower(trim(color)), '')
+      )
+      where product_type = 'accessoire' and quantity <> 0
+    `,
+  },
 ];
 
 try {

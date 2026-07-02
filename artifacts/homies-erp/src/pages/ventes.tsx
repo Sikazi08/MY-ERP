@@ -15,22 +15,89 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { Loader2, Plus, Search, Download, Ban, Upload, FileText, ChevronLeft, ChevronRight, Smartphone, Package, Eye, Printer, Paperclip, Pencil, Trash2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { ProductSearchCombobox } from "@/components/product-combobox";
+import { uploadAttachmentFiles, type AttachmentFiles, type AttachmentType } from "@/lib/attachment-upload";
 
 const BRANDS = ["Apple", "Samsung", "Xiaomi", "Tecno", "Infinix", "itel", "Huawei", "Oppo", "Vivo", "Realme", "Nokia", "Autre"];
 const CAPACITIES = ["16 Go", "32 Go", "64 Go", "128 Go", "256 Go", "512 Go", "1 To"];
 const COLORS = ["Noir", "Blanc", "Bleu", "Rouge", "Or", "Argent", "Vert", "Gris", "Rose", "Violet", "Autre"];
 const PAGE_SIZE = 25;
+const ATTACHMENT_LABELS: Record<AttachmentType, string> = {
+  facture: "Facture du téléphone",
+  cni: "Carte Nationale d'Identité (CNI)",
+  declaration: "Déclaration sur l'honneur",
+};
 
 interface ClientSuggestion { id: number; fullName: string; phone: string | null; }
 type SaleFormInput = SaleInput & { quantitySold?: number; saleDate?: string };
+
+function progressKey(type: AttachmentType, index: number, file: File) {
+  return `${type}-${index}-${file.name}`;
+}
+
+function MultiAttachmentPicker({
+  type,
+  files,
+  onChange,
+  progress,
+  disabled,
+}: {
+  type: AttachmentType;
+  files: File[];
+  onChange: (files: File[]) => void;
+  progress: Record<string, number>;
+  disabled?: boolean;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <div className="space-y-2 rounded-md border border-border bg-muted/20 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-sm font-medium">{ATTACHMENT_LABELS[type]}</div>
+        <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={() => inputRef.current?.click()}>
+          <Upload className="h-4 w-4 mr-2" /> Ajouter
+        </Button>
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".pdf,.jpg,.jpeg,.png"
+        multiple
+        className="hidden"
+        onChange={(event) => {
+          onChange(Array.from(event.target.files ?? []));
+          event.target.value = "";
+        }}
+      />
+      {files.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Aucun fichier sélectionné.</p>
+      ) : (
+        <div className="space-y-2">
+          {files.map((file, index) => {
+            const value = progress[progressKey(type, index, file)];
+            return (
+              <div key={`${file.name}-${index}`} className="space-y-1">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <FileText className="h-3.5 w-3.5 text-primary" />
+                  <span className="truncate">{file.name}</span>
+                  {value !== undefined && <span className="ml-auto">{value}%</span>}
+                </div>
+                {value !== undefined && <Progress value={value} className="h-1.5 [&>div]:bg-yellow-500" />}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function getLocalDateInputValue(date = new Date()) {
   const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
@@ -73,6 +140,7 @@ function SaleAttachmentsSection({ sale }: { sale: any }) {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadType, setUploadType] = useState<"facture" | "declaration" | "cni">("facture");
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -88,21 +156,19 @@ function SaleAttachmentsSection({ sale }: { sale: any }) {
 
   useEffect(() => { void load(); }, [load]);
 
-  const handleUpload = async (file: File) => {
+  const handleUpload = async (files: File[]) => {
     if (!productId) return;
     setUploading(true);
+    setUploadProgress({});
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("type", uploadType);
-      const res = await fetch(`/api/attachments/products/${productId}`, { method: "POST", credentials: "include", body: fd });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error(err.error || "Erreur upload");
-        return;
-      }
-      toast.success("Piece jointe ajoutee");
+      await uploadAttachmentFiles(productId, { [uploadType]: files }, (key, percent) => {
+        setUploadProgress(prev => ({ ...prev, [key]: percent }));
+      });
+      toast.success(files.length > 1 ? "Pièces jointes ajoutées." : "Pièce jointe ajoutée.");
       await load();
+      setUploadProgress({});
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erreur upload");
     } finally {
       setUploading(false);
     }
@@ -143,8 +209,8 @@ function SaleAttachmentsSection({ sale }: { sale: any }) {
               <SelectItem value="cni">CNI</SelectItem>
             </SelectContent>
           </Select>
-          <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) void handleUpload(f); e.target.value = ""; }} />
+          <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" multiple className="hidden"
+            onChange={e => { const files = Array.from(e.target.files ?? []); if (files.length) void handleUpload(files); e.target.value = ""; }} />
           <Button variant="outline" size="sm" disabled={uploading} onClick={() => fileRef.current?.click()}>
             {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Upload className="h-4 w-4 mr-2" />Ajouter</>}
           </Button>
@@ -152,6 +218,15 @@ function SaleAttachmentsSection({ sale }: { sale: any }) {
       </div>
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Chargement...</div>
+      ) : uploading && Object.keys(uploadProgress).length > 0 ? (
+        <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
+          {Object.entries(uploadProgress).map(([key, value]) => (
+            <div key={key} className="space-y-1">
+              <div className="flex justify-between text-xs text-muted-foreground"><span className="truncate">{key.split("-").slice(2).join("-")}</span><span>{value}%</span></div>
+              <Progress value={value} className="h-1.5 [&>div]:bg-yellow-500" />
+            </div>
+          ))}
+        </div>
       ) : attachments.length === 0 ? (
         <p className="text-xs text-muted-foreground bg-muted/30 border border-border rounded-lg p-3">Aucune piece jointe.</p>
       ) : (
@@ -194,14 +269,12 @@ export default function Ventes() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [trocHasInvoice, setTrocHasInvoice] = useState(false);
-  const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
+  const [trocHasInvoice, setTrocHasInvoice] = useState<boolean | null>(null);
+  const [invoiceFiles, setInvoiceFiles] = useState<File[]>([]);
   const [declFiles, setDeclFiles] = useState<File[]>([]);
-  const declFile = declFiles[0] ?? null;
-  const [cniFile, setCniFile] = useState<File | null>(null);
-  const invoiceInputRef = useRef<HTMLInputElement>(null);
-  const declInputRef = useRef<HTMLInputElement>(null);
-  const cniInputRef = useRef<HTMLInputElement>(null);
+  const [cniFiles, setCniFiles] = useState<File[]>([]);
+  const [saleUploadProgress, setSaleUploadProgress] = useState<Record<string, number>>({});
+  const [isUploadingSaleAttachments, setIsUploadingSaleAttachments] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
   const [selectedSale, setSelectedSale] = useState<any | null>(null);
@@ -278,51 +351,52 @@ export default function Ventes() {
 
   const resetForm = () => {
     form.reset({ saleType: "normal", paymentMode: "Cash", amount: 0, clientName: "", clientPhone: "", saleDate: getLocalDateInputValue() });
-    setTrocHasInvoice(false);
-    setInvoiceFile(null);
+    setTrocHasInvoice(null);
+    setInvoiceFiles([]);
     setDeclFiles([]);
-    setCniFile(null);
+    setCniFiles([]);
+    setSaleUploadProgress({});
+    setIsUploadingSaleAttachments(false);
     nameAutocomplete.clear();
     phoneAutocomplete.clear();
   };
 
-  const uploadAttachment = async (productId: number, file: File, type: string) => {
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("type", type);
-    await fetch(`/api/attachments/products/${productId}`, { method: "POST", credentials: "include", body: fd });
-  };
-
-  const onSubmit = (data: SaleFormInput) => {
+  const onSubmit = async (data: SaleFormInput) => {
     if (!data.productId) { form.setError("productId" as any, { message: "Veuillez sélectionner un produit" }); return; }
     if (!data.amount || data.amount <= 0) { form.setError("amount", { message: "Le montant doit être supérieur à 0" }); return; }
     if (data.saleType === "troc" && !data.trocProduct) { form.setError("trocProduct", { message: "Le nom de l'appareil est obligatoire" }); return; }
     if (data.saleType === "troc" && !data.trocBrand) { form.setError("trocBrand", { message: "La marque est obligatoire" }); return; }
+    if (data.saleType === "troc" && trocHasInvoice === null) { toast.error("Veuillez indiquer si le client a remis la facture."); return; }
+    if (data.saleType === "troc" && trocHasInvoice === true && invoiceFiles.length === 0) { toast.error("Veuillez ajouter la facture du téléphone."); return; }
+    if (data.saleType === "troc" && trocHasInvoice === false && cniFiles.length === 0) { toast.error("Veuillez ajouter la CNI du client."); return; }
+    if (data.saleType === "troc" && declFiles.length === 0) { toast.error("Veuillez ajouter la déclaration sur l'honneur."); return; }
 
     const payload = { ...data, trocHasInvoice: trocHasInvoice ? true : undefined };
 
-    createMutation.mutate({ data: payload as SaleInput }, {
-      onSuccess: async (saleData: any) => {
-        // Upload troc attachments if any files selected
-        if (data.saleType === "troc" && saleData?.trocProductId) {
-          const uploads: Promise<void>[] = [];
-          if (trocHasInvoice && invoiceFile) uploads.push(uploadAttachment(saleData.trocProductId, invoiceFile, "facture"));
-          if (!trocHasInvoice) declFiles.forEach((file) => uploads.push(uploadAttachment(saleData.trocProductId, file, "declaration")));
-          if (!trocHasInvoice && cniFile) uploads.push(uploadAttachment(saleData.trocProductId, cniFile, "cni"));
-          if (uploads.length) await Promise.all(uploads);
-        }
-        toast.success("Vente enregistrée avec succès ✓");
-        queryClient.invalidateQueries({ queryKey: getListSalesQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getListMovementsQueryKey() });
-        setIsAddOpen(false);
-        resetForm();
-      },
-      onError: (e: unknown) => {
-        const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
-        toast.error(msg || "Erreur lors de l'enregistrement de la vente");
-      },
-    });
+    try {
+      const saleData: any = await createMutation.mutateAsync({ data: payload as SaleInput });
+      if (data.saleType === "troc" && saleData?.trocProductId) {
+        const filesByType: AttachmentFiles = trocHasInvoice
+          ? { facture: invoiceFiles, declaration: declFiles }
+          : { cni: cniFiles, declaration: declFiles };
+        setIsUploadingSaleAttachments(true);
+        setSaleUploadProgress({});
+        await uploadAttachmentFiles(saleData.trocProductId, filesByType, (key, percent) => {
+          setSaleUploadProgress(prev => ({ ...prev, [key]: percent }));
+        });
+      }
+      toast.success(data.saleType === "troc" ? "Troc enregistré avec succès." : data.saleType === "fast_deal" ? "Fast Deal enregistré avec succès." : "Vente enregistrée avec succès.");
+      queryClient.invalidateQueries({ queryKey: getListSalesQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getListMovementsQueryKey() });
+      setIsAddOpen(false);
+      resetForm();
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      toast.error(msg || "Erreur lors de l'enregistrement de la vente.");
+    } finally {
+      setIsUploadingSaleAttachments(false);
+    }
   };
 
   const openEditDialog = (s: any) => {
@@ -646,50 +720,62 @@ export default function Ventes() {
                         )} />
                       </div>
 
-                      {/* Invoice */}
                       <div className="border-t border-primary/20 pt-3 space-y-3">
-                        <div className="flex items-center gap-3">
-                          <Checkbox id="troc-invoice" checked={trocHasInvoice}
-                            onCheckedChange={(v) => { setTrocHasInvoice(!!v); if (!v) setInvoiceFile(null); }} />
-                          <Label htmlFor="troc-invoice" className="cursor-pointer text-sm">Le client a remis sa facture ?</Label>
+                        <Label className="text-sm font-medium">Le client a-t-il remis la facture de son téléphone ?</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Button
+                            type="button"
+                            variant={trocHasInvoice === true ? "default" : "outline"}
+                            disabled={isUploadingSaleAttachments}
+                            onClick={() => setTrocHasInvoice(true)}
+                          >
+                            Oui
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={trocHasInvoice === false ? "default" : "outline"}
+                            disabled={isUploadingSaleAttachments}
+                            onClick={() => { setTrocHasInvoice(false); setInvoiceFiles([]); }}
+                          >
+                            Non
+                          </Button>
                         </div>
-                        {trocHasInvoice ? (
-                          <div className="space-y-2">
-                            <input ref={invoiceInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
-                              onChange={e => { const f = e.target.files?.[0]; if (f) { setInvoiceFile(f); toast.success(`Facture sélectionnée : ${f.name}`); } }} />
-                            <Button type="button" variant="outline" size="sm" onClick={() => invoiceInputRef.current?.click()}>
-                              <Upload className="h-4 w-4 mr-2" /> Sélectionner la facture
-                            </Button>
-                            {invoiceFile && <div className="flex items-center gap-1 text-xs text-green-400"><FileText className="h-3.5 w-3.5" />{invoiceFile.name}</div>}
+
+                        {trocHasInvoice === true && (
+                          <div className="space-y-3">
+                            <MultiAttachmentPicker
+                              type="facture"
+                              files={invoiceFiles}
+                              progress={saleUploadProgress}
+                              disabled={isUploadingSaleAttachments}
+                              onChange={setInvoiceFiles}
+                            />
+                            <MultiAttachmentPicker
+                              type="declaration"
+                              files={declFiles}
+                              progress={saleUploadProgress}
+                              disabled={isUploadingSaleAttachments}
+                              onChange={setDeclFiles}
+                            />
                           </div>
-                        ) : (
-                          <div className="space-y-2">
-                            <p className="text-xs text-muted-foreground">Documents alternatifs (facultatif) :</p>
-                            <div className="flex flex-col gap-2">
-                              <div className="flex items-center gap-2">
-                                <input ref={declInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" multiple className="hidden"
-                                  onChange={e => {
-                                    const files = Array.from(e.target.files ?? []).slice(0, 2);
-                                    if (files.length) {
-                                      setDeclFiles(files);
-                                      toast.success(`${files.length} déclaration${files.length > 1 ? "s" : ""} sélectionnée${files.length > 1 ? "s" : ""}`);
-                                    }
-                                  }} />
-                                <Button type="button" variant="outline" size="sm" onClick={() => declInputRef.current?.click()}>
-                                  <Upload className="h-4 w-4 mr-1" /> Déclaration sur l'honneur
-                                </Button>
-                                {declFile && <span className="text-xs text-green-400 truncate max-w-[120px]"><FileText className="h-3 w-3 inline mr-0.5" />{declFile.name}</span>}
-                                {declFiles.length > 1 && <span className="text-xs text-green-400">+{declFiles.length - 1} fichier</span>}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <input ref={cniInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
-                                  onChange={e => { const f = e.target.files?.[0]; if (f) { setCniFile(f); toast.success(`CNI sélectionnée : ${f.name}`); } }} />
-                                <Button type="button" variant="outline" size="sm" onClick={() => cniInputRef.current?.click()}>
-                                  <Upload className="h-4 w-4 mr-1" /> CNI
-                                </Button>
-                                {cniFile && <span className="text-xs text-green-400 truncate max-w-[120px]"><FileText className="h-3 w-3 inline mr-0.5" />{cniFile.name}</span>}
-                              </div>
-                            </div>
+                        )}
+
+                        {trocHasInvoice === false && (
+                          <div className="space-y-3">
+                            <MultiAttachmentPicker
+                              type="cni"
+                              files={cniFiles}
+                              progress={saleUploadProgress}
+                              disabled={isUploadingSaleAttachments}
+                              onChange={setCniFiles}
+                            />
+                            <MultiAttachmentPicker
+                              type="declaration"
+                              files={declFiles}
+                              progress={saleUploadProgress}
+                              disabled={isUploadingSaleAttachments}
+                              onChange={setDeclFiles}
+                            />
                           </div>
                         )}
                       </div>

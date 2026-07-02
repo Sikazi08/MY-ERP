@@ -16,11 +16,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { Loader2, Plus, Search, Download, Trash2, Edit2, ChevronLeft, ChevronRight, Smartphone, Package, Upload, FileText, Paperclip } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { format } from "date-fns";
+import { uploadAttachmentFiles, type AttachmentFiles, type AttachmentType } from "@/lib/attachment-upload";
 
 interface TrocAttachment { id: number; type: string; filename: string; mime_type: string; created_at: string; }
 
@@ -129,9 +131,85 @@ const PHONE_STATES = [
 ];
 const PAGE_SIZE = 25;
 
-type ProductFormData = ProductInput & { productType?: string; quantity?: number; entryMethod?: string; phoneState?: string };
+type ProductFormData = ProductInput & {
+  productType?: string;
+  quantity?: number;
+  entryMethod?: string;
+  phoneState?: string;
+  individualName?: string;
+  individualPhone?: string;
+};
+
+const ATTACHMENT_LABELS: Record<AttachmentType, string> = {
+  facture: "Facture du téléphone",
+  cni: "Carte Nationale d'Identité (CNI)",
+  declaration: "Déclaration sur l'honneur",
+};
+
+function progressKey(type: AttachmentType, index: number, file: File) {
+  return `${type}-${index}-${file.name}`;
+}
+
+function AttachmentPicker({
+  type,
+  files,
+  onChange,
+  progress,
+  disabled,
+}: {
+  type: AttachmentType;
+  files: File[];
+  onChange: (files: File[]) => void;
+  progress: Record<string, number>;
+  disabled?: boolean;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <div className="space-y-2 rounded-md border border-border bg-muted/20 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-sm font-medium">{ATTACHMENT_LABELS[type]}</div>
+        <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={() => inputRef.current?.click()}>
+          <Upload className="h-4 w-4 mr-2" /> Ajouter
+        </Button>
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".pdf,.jpg,.jpeg,.png"
+        multiple
+        className="hidden"
+        onChange={(event) => {
+          onChange(Array.from(event.target.files ?? []));
+          event.target.value = "";
+        }}
+      />
+      {files.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Aucun fichier sélectionné.</p>
+      ) : (
+        <div className="space-y-2">
+          {files.map((file, index) => {
+            const value = progress[progressKey(type, index, file)];
+            return (
+              <div key={`${file.name}-${index}`} className="space-y-1">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <FileText className="h-3.5 w-3.5 text-primary" />
+                  <span className="truncate">{file.name}</span>
+                  {value !== undefined && <span className="ml-auto">{value}%</span>}
+                </div>
+                {value !== undefined && <Progress value={value} className="h-1.5 [&>div]:bg-yellow-500" />}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function PhoneFormFields({ f, isAdmin }: { f: ReturnType<typeof useForm<ProductFormData>>; isAdmin: boolean }) {
+  const entryMethod = (f.watch("entryMethod" as keyof ProductFormData) as string) || "achat";
+
   return (
     <>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -150,10 +228,33 @@ function PhoneFormFields({ f, isAdmin }: { f: ReturnType<typeof useForm<ProductF
         <FormField control={f.control} name="imei" render={({ field }) => (
           <FormItem><FormLabel>IMEI</FormLabel><FormControl><Input {...field} placeholder="15 chiffres" /></FormControl><FormMessage /></FormItem>
         )} />
-        <FormField control={f.control} name="supplier" render={({ field }) => (
-          <FormItem><FormLabel>Fournisseur</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+        <FormField control={f.control} name={"entryMethod" as keyof ProductFormData} rules={{ required: "Le type d'entrée est obligatoire" }} render={({ field }) => (
+          <FormItem><FormLabel>Type d'entrée *</FormLabel>
+            <Select onValueChange={field.onChange} value={(field.value as string) ?? "achat"}>
+              <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+              <SelectContent>
+                <SelectItem value="achat">Achat</SelectItem>
+                <SelectItem value="partenaire">Partenaire</SelectItem>
+                <SelectItem value="particulier">Achat chez un particulier</SelectItem>
+                {entryMethod === "troc" && <SelectItem value="troc">Troc</SelectItem>}
+              </SelectContent>
+            </Select><FormMessage /></FormItem>
         )} />
       </div>
+      {entryMethod === "particulier" ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <FormField control={f.control} name={"individualName" as keyof ProductFormData} rules={{ required: "Le nom du particulier est obligatoire" }} render={({ field }) => (
+            <FormItem><FormLabel>Nom du particulier *</FormLabel><FormControl><Input {...field} value={(field.value as string) ?? ""} /></FormControl><FormMessage /></FormItem>
+          )} />
+          <FormField control={f.control} name={"individualPhone" as keyof ProductFormData} rules={{ required: "Le numéro du particulier est obligatoire" }} render={({ field }) => (
+            <FormItem><FormLabel>Numéro de téléphone *</FormLabel><FormControl><Input {...field} value={(field.value as string) ?? ""} /></FormControl><FormMessage /></FormItem>
+          )} />
+        </div>
+      ) : (
+        <FormField control={f.control} name="supplier" render={({ field }) => (
+          <FormItem><FormLabel>{entryMethod === "partenaire" ? "Partenaire / provenance" : "Fournisseur"}</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
+        )} />
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <FormField control={f.control} name="capacity" render={({ field }) => (
           <FormItem><FormLabel>Capacité</FormLabel>
@@ -180,16 +281,7 @@ function PhoneFormFields({ f, isAdmin }: { f: ReturnType<typeof useForm<ProductF
               </SelectContent>
             </Select><FormMessage /></FormItem>
         )} />
-        <FormField control={f.control} name={"entryMethod" as keyof ProductFormData} render={({ field }) => (
-          <FormItem><FormLabel>Méthode d'entrée</FormLabel>
-            <Select onValueChange={field.onChange} value={(field.value as string) ?? "achat"}>
-              <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-              <SelectContent>
-                <SelectItem value="achat">Achat</SelectItem>
-                <SelectItem value="troc">Entré en Troc</SelectItem>
-              </SelectContent>
-            </Select><FormMessage /></FormItem>
-        )} />
+        <div />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1">
@@ -211,6 +303,14 @@ function AccessoireFormFields({ f, isAdmin }: { f: ReturnType<typeof useForm<Pro
         )} />
         <FormField control={f.control} name="brand" render={({ field }) => (
           <FormItem><FormLabel>Marque (Optionnel)</FormLabel><FormControl><Input {...field} placeholder="Ex: Anker" /></FormControl><FormMessage /></FormItem>
+        )} />
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <FormField control={f.control} name="capacity" render={({ field }) => (
+          <FormItem><FormLabel>Capacité / Modèle</FormLabel><FormControl><Input {...field} value={field.value ?? ""} placeholder="Ex: 65W, USB-C, 128 Go..." /></FormControl><FormMessage /></FormItem>
+        )} />
+        <FormField control={f.control} name="color" render={({ field }) => (
+          <FormItem><FormLabel>Couleur</FormLabel><FormControl><Input {...field} value={field.value ?? ""} placeholder="Ex: Noir" /></FormControl><FormMessage /></FormItem>
         )} />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -284,6 +384,9 @@ export default function Stock() {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importLoading, setImportLoading] = useState(false);
+  const [stockAttachmentFiles, setStockAttachmentFiles] = useState<AttachmentFiles>({});
+  const [stockUploadProgress, setStockUploadProgress] = useState<Record<string, number>>({});
+  const [isUploadingStockAttachments, setIsUploadingStockAttachments] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
 
   const params = {
@@ -307,8 +410,8 @@ export default function Stock() {
   const createMutation = useCreateProduct();
   const updateMutation = useUpdateProduct();
 
-  const defaultPhoneValues = { product: "", brand: "", status: "en_stock" as const, entryDate: format(new Date(), "yyyy-MM-dd"), productType: "téléphone", quantity: 1, entryMethod: "achat", phoneState: "OPEN BOX" };
-  const defaultAccValues = { product: "", brand: "", status: "en_stock" as const, entryDate: format(new Date(), "yyyy-MM-dd"), productType: "accessoire", quantity: 1, entryMethod: undefined, phoneState: undefined };
+  const defaultPhoneValues = { product: "", brand: "", status: "en_stock" as const, entryDate: format(new Date(), "yyyy-MM-dd"), productType: "téléphone", quantity: 1, entryMethod: "achat", phoneState: "OPEN BOX", individualName: "", individualPhone: "" };
+  const defaultAccValues = { product: "", brand: "", capacity: "", color: "", status: "en_stock" as const, entryDate: format(new Date(), "yyyy-MM-dd"), productType: "accessoire", quantity: 1, entryMethod: undefined, phoneState: undefined };
 
   const form = useForm<ProductFormData>({ defaultValues: defaultPhoneValues });
   const editForm = useForm<ProductFormData>({ defaultValues: { product: "", brand: "", status: "en_stock", entryDate: "" } });
@@ -317,21 +420,67 @@ export default function Stock() {
     if (type === "téléphone") form.reset(defaultPhoneValues);
     else form.reset(defaultAccValues);
     setAddProductType(type);
+    setStockAttachmentFiles({});
+    setStockUploadProgress({});
+    setIsUploadingStockAttachments(false);
   };
 
   const onSubmit = async (data: ProductFormData) => {
-    createMutation.mutate({ data: { ...data, productType: addProductType } as ProductInput }, {
-      onSuccess: () => {
-        toast.success("Produit ajouté avec succès");
-        queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
-        setIsAddOpen(false);
-        resetAddForm("téléphone");
-      },
-      onError: (e: unknown) => {
-        const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
-        toast.error(msg || "Erreur lors de l'ajout");
-      },
-    });
+    try {
+      const payload = {
+        ...data,
+        productType: addProductType,
+        supplier: data.entryMethod === "particulier" ? undefined : data.supplier,
+      } as ProductInput;
+
+      const created = await createMutation.mutateAsync({ data: payload });
+      if (addProductType === "téléphone" && data.entryMethod === "particulier") {
+        const hasFiles = Object.values(stockAttachmentFiles).some(files => (files?.length ?? 0) > 0);
+        if (hasFiles) {
+          setIsUploadingStockAttachments(true);
+          setStockUploadProgress({});
+          await uploadAttachmentFiles(created.id, stockAttachmentFiles, (key, percent) => {
+            setStockUploadProgress(prev => ({ ...prev, [key]: percent }));
+          });
+        }
+      }
+
+      toast.success("Produit ajouté avec succès.");
+      queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getListMovementsQueryKey() });
+      setIsAddOpen(false);
+      resetAddForm("téléphone");
+    } catch (e: unknown) {
+      const payload = (e as { response?: { data?: { error?: string; code?: string; existingProductId?: number } } })?.response?.data;
+      if (payload?.code === "DUPLICATE_ACCESSORY" && payload.existingProductId) {
+        const shouldAdd = confirm(payload.error || "Cet accessoire existe déjà en stock. Souhaitez-vous simplement ajouter cette quantité au stock existant ?");
+        if (shouldAdd) {
+          const res = await fetch(`/api/products/${payload.existingProductId}/add-quantity`, {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ quantity: data.quantity ?? 1 }),
+          });
+          const body = await res.json().catch(() => ({}));
+          if (res.ok) {
+            toast.success("Quantité ajoutée avec succès au stock existant.");
+            queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
+            queryClient.invalidateQueries({ queryKey: getListMovementsQueryKey() });
+            setIsAddOpen(false);
+            resetAddForm("téléphone");
+          } else {
+            toast.error(body.error || "Erreur lors de l'ajout de quantité.");
+          }
+        } else {
+          toast.info("Opération annulée. Aucun nouvel accessoire n'a été créé.");
+        }
+        return;
+      }
+
+      toast.error(payload?.error || "Erreur lors de l'ajout du produit.");
+    } finally {
+      setIsUploadingStockAttachments(false);
+    }
   };
 
   const handleImport = async () => {
@@ -409,6 +558,8 @@ export default function Stock() {
       capacity: product.capacity ?? "",
       color: product.color ?? "",
       supplier: product.supplier ?? "",
+      individualName: p.individualName ?? "",
+      individualPhone: p.individualPhone ?? "",
       purchasePrice: product.purchasePrice ?? undefined,
       sellingPrice: product.sellingPrice ?? undefined,
       status: product.status,
@@ -431,6 +582,7 @@ export default function Stock() {
   };
 
   const editProductType = (editForm.watch("productType" as any) as string) || (selectedProduct as any)?.productType || "téléphone";
+  const addEntryMethod = (form.watch("entryMethod" as keyof ProductFormData) as string) || "achat";
 
   return (
     <div className="space-y-6">
@@ -473,11 +625,38 @@ export default function Stock() {
                     <AccessoireFormFields f={form} isAdmin={isAdmin} />
                   )}
 
+                  {addProductType === "téléphone" && addEntryMethod === "particulier" && (
+                    <div className="space-y-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
+                      <h4 className="text-sm font-semibold">Pièces jointes du particulier</h4>
+                      <AttachmentPicker
+                        type="facture"
+                        files={stockAttachmentFiles.facture ?? []}
+                        progress={stockUploadProgress}
+                        disabled={isUploadingStockAttachments}
+                        onChange={(files) => setStockAttachmentFiles(prev => ({ ...prev, facture: files }))}
+                      />
+                      <AttachmentPicker
+                        type="cni"
+                        files={stockAttachmentFiles.cni ?? []}
+                        progress={stockUploadProgress}
+                        disabled={isUploadingStockAttachments}
+                        onChange={(files) => setStockAttachmentFiles(prev => ({ ...prev, cni: files }))}
+                      />
+                      <AttachmentPicker
+                        type="declaration"
+                        files={stockAttachmentFiles.declaration ?? []}
+                        progress={stockUploadProgress}
+                        disabled={isUploadingStockAttachments}
+                        onChange={(files) => setStockAttachmentFiles(prev => ({ ...prev, declaration: files }))}
+                      />
+                    </div>
+                  )}
+
                   <CommonStatusDateFields f={form} forAdd />
                   <CommonPriceFields f={form} isAdmin={isAdmin} />
 
-                  <Button type="submit" className="w-full mt-4" disabled={createMutation.isPending}>
-                    {createMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Enregistrer"}
+                  <Button type="submit" className="w-full mt-4" disabled={createMutation.isPending || isUploadingStockAttachments}>
+                    {(createMutation.isPending || isUploadingStockAttachments) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Enregistrer"}
                   </Button>
                 </form>
               </Form>
@@ -675,15 +854,22 @@ export default function Stock() {
                       <div><Label className="text-xs text-muted-foreground">IMEI</Label><p className="font-medium font-mono text-sm">{selectedProduct.imei || "-"}</p></div>
                       <div><Label className="text-xs text-muted-foreground">Capacité / Couleur</Label><p className="font-medium">{selectedProduct.capacity || "-"} / {selectedProduct.color || "-"}</p></div>
                       <div><Label className="text-xs text-muted-foreground">Méthode d'entrée</Label>
-                        <p className="font-medium">{p.entryMethod === "troc" ? "🔄 Troc" : "🛒 Achat"}</p>
+                        <p className="font-medium">
+                          {p.entryMethod === "troc" ? "Troc" : p.entryMethod === "partenaire" ? "Partenaire" : p.entryMethod === "particulier" ? "Achat chez un particulier" : "Achat"}
+                        </p>
                       </div>
+                      {p.entryMethod === "particulier" && (
+                        <div><Label className="text-xs text-muted-foreground">Particulier</Label><p className="font-medium">{p.individualName || "-"}{p.individualPhone ? ` · ${p.individualPhone}` : ""}</p></div>
+                      )}
                     </>
                   ) : (
                     <div><Label className="text-xs text-muted-foreground">Quantité en stock</Label>
                       <p className="text-2xl font-bold text-primary">{p.quantity ?? 1}</p>
                     </div>
                   )}
-                  <div><Label className="text-xs text-muted-foreground">Fournisseur</Label><p className="font-medium">{selectedProduct.supplier || "-"}</p></div>
+                  {p.entryMethod !== "particulier" && (
+                    <div><Label className="text-xs text-muted-foreground">{p.entryMethod === "partenaire" ? "Partenaire / provenance" : "Fournisseur"}</Label><p className="font-medium">{selectedProduct.supplier || "-"}</p></div>
+                  )}
                   <div><Label className="text-xs text-muted-foreground">Date d'entrée</Label><p className="font-medium">{formatDateFr(selectedProduct.entryDate)}</p></div>
                 </div>
                 <div className="space-y-3 bg-muted/30 p-4 rounded-lg border border-border">

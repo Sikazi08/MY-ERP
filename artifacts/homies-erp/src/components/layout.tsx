@@ -2,6 +2,7 @@ import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth-context";
 import { useLogout } from "@workspace/api-client-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard,
@@ -42,8 +43,10 @@ export function Layout({ children }: { children: ReactNode }) {
   const handleLogout = () => {
     logout.mutate(undefined, {
       onSuccess: () => {
+        toast.success("Déconnexion réussie.");
         window.location.href = "/login";
       },
+      onError: () => toast.error("Erreur lors de la déconnexion."),
     });
   };
 

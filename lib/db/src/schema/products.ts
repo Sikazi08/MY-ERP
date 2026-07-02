@@ -14,6 +14,8 @@ export const productsTable = pgTable("products", {
   color: text("color"),
   phoneState: text("phone_state"),
   supplier: text("supplier"),
+  individualName: text("individual_name"),
+  individualPhone: text("individual_phone"),
   purchasePrice: numeric("purchase_price", { precision: 12, scale: 2 }),
   sellingPrice: numeric("selling_price", { precision: 12, scale: 2 }),
   status: productStatusEnum("status").notNull().default("en_stock"),

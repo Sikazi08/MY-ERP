@@ -12,4 +12,5 @@ function run(command, args) {
 }
 
 run("pnpm", ["--filter", "@workspace/db", "run", "push"]);
+run("pnpm", ["--filter", "@workspace/api-server", "run", "repair-db"]);
 run("pnpm", ["--filter", "@workspace/api-server", "run", "create-admin"]);

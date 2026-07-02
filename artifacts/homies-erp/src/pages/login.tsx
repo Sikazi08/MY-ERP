@@ -34,6 +34,7 @@ export default function Login() {
         onSuccess: (data) => {
           queryClient.setQueryData(getGetMeQueryKey(), data.user);
           queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+          toast.success("Connexion réussie.");
           setLocation("/");
         },
         onError: (e: unknown) => {

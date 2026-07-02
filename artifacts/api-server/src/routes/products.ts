@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, productsTable, movementsTable, partnerMovementsTable, partnersTable } from "@workspace/db";
-import { eq, ne, ilike, or, and, gte, lte, inArray } from "drizzle-orm";
+import { eq, ne, ilike, or, and, gte, lte, inArray, sql } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 import multer from "multer";
 import ExcelJS from "exceljs";
@@ -20,11 +20,46 @@ async function generateProductId(): Promise<string> {
 function nowDateStr() { return new Date().toISOString().split("T")[0]; }
 function nowTimeStr() { return new Date().toTimeString().slice(0, 8); }
 
+function cleanText(value: unknown): string | null {
+  const text = String(value ?? "").trim();
+  return text || null;
+}
+
+function normalizeIdentity(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return (error as { code?: string })?.code === "23505";
+}
+
+function isAccessoryDuplicateIndex(error: unknown): boolean {
+  return String((error as { constraint?: string })?.constraint ?? "").includes("products_unique_active_accessory_identity");
+}
+
+function isPhoneImeiIndex(error: unknown): boolean {
+  return String((error as { constraint?: string })?.constraint ?? "").includes("products_unique_phone_imei");
+}
+
+async function findActiveAccessoryDuplicate(values: { product: unknown; brand?: unknown; capacity?: unknown; color?: unknown }) {
+  const [row] = await db.select().from(productsTable).where(and(
+    eq(productsTable.productType, "accessoire"),
+    ne(productsTable.quantity, 0),
+    sql`lower(trim(${productsTable.product})) = ${normalizeIdentity(values.product)}`,
+    sql`coalesce(lower(trim(${productsTable.brand})), '') = ${normalizeIdentity(values.brand)}`,
+    sql`coalesce(lower(trim(${productsTable.capacity})), '') = ${normalizeIdentity(values.capacity)}`,
+    sql`coalesce(lower(trim(${productsTable.color})), '') = ${normalizeIdentity(values.color)}`,
+  )).limit(1);
+  return row;
+}
+
 function mapProduct(p: typeof productsTable.$inferSelect, isAdmin: boolean, partnerName?: string | null) {
   return {
     ...p,
     brand: p.brand || null,
     phoneState: p.phoneState || null,
+    individualName: p.individualName || null,
+    individualPhone: p.individualPhone || null,
     purchasePrice: isAdmin ? (p.purchasePrice !== null ? Number(p.purchasePrice) : null) : undefined,
     sellingPrice: p.sellingPrice !== null ? Number(p.sellingPrice) : null,
     profit: isAdmin && p.purchasePrice !== null && p.sellingPrice !== null
@@ -75,6 +110,8 @@ router.get("/", requireAuth, async (req, res): Promise<void> => {
         ilike(productsTable.brand, `%${search}%`),
         ilike(productsTable.productId, `%${search}%`),
         ilike(productsTable.supplier, `%${search}%`),
+        ilike(productsTable.individualName, `%${search}%`),
+        ilike(productsTable.individualPhone, `%${search}%`),
       )
     );
   }
@@ -100,9 +137,9 @@ router.get("/", requireAuth, async (req, res): Promise<void> => {
 
 router.post("/", requireAuth, async (req, res): Promise<void> => {
   const {
-    imei, product, brand, capacity, color, phoneState, supplier,
+    imei, product, brand, capacity, color, phoneState, supplier, individualName, individualPhone,
     purchasePrice, sellingPrice, status, entryDate,
-    productType = "téléphone", quantity = 1, entryMethod = "achat"
+    productType = "téléphone", quantity = 1, entryMethod = "achat",
   } = req.body;
 
   if (!product || !entryDate) {
@@ -110,40 +147,85 @@ router.post("/", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  // For phones: check IMEI uniqueness
-  if (productType === "téléphone" && imei) {
-    const [existing] = await db.select({ id: productsTable.id }).from(productsTable).where(eq(productsTable.imei, imei)).limit(1);
+  const isAdmin = req.session!.role === "admin";
+  const normalizedProductType = productType === "accessoire" ? "accessoire" : "téléphone";
+  const trimmedImei = cleanText(imei);
+  const selectedEntryMethod = cleanText(entryMethod) || "achat";
+  const allowedPhoneEntryMethods = ["achat", "partenaire", "particulier"];
+
+  if (normalizedProductType === "téléphone" && !allowedPhoneEntryMethods.includes(selectedEntryMethod)) {
+    res.status(400).json({ error: "Veuillez choisir un type d'entrée valide" });
+    return;
+  }
+
+  if (normalizedProductType === "téléphone" && selectedEntryMethod === "particulier" && (!cleanText(individualName) || !cleanText(individualPhone))) {
+    res.status(400).json({ error: "Nom et numéro du particulier sont requis" });
+    return;
+  }
+
+  if (normalizedProductType === "téléphone" && trimmedImei) {
+    const [existing] = await db.select({ id: productsTable.id }).from(productsTable).where(eq(productsTable.imei, trimmedImei)).limit(1);
     if (existing) {
-      res.status(409).json({ error: `Un produit avec l'IMEI ${imei} existe déjà dans le système` });
+      res.status(409).json({ error: "Ce téléphone existe déjà en stock (IMEI déjà enregistré).", code: "DUPLICATE_IMEI" });
       return;
     }
   }
 
-  const isAdmin = req.session!.role === "admin";
+  if (normalizedProductType === "accessoire") {
+    const duplicate = await findActiveAccessoryDuplicate({ product, brand, capacity, color });
+    if (duplicate) {
+      res.status(409).json({
+        error: "Cet accessoire existe déjà en stock. Souhaitez-vous simplement ajouter cette quantité au stock existant ?",
+        code: "DUPLICATE_ACCESSORY",
+        existingProductId: duplicate.id,
+        existingProduct: mapProduct(duplicate, isAdmin),
+      });
+      return;
+    }
+  }
+
   const productId = await generateProductId();
+  const finalQuantity = normalizedProductType === "téléphone" ? 1 : Math.max(1, parseInt(String(quantity)) || 1);
 
-  // For accessories: single product with quantity
-  // For phones: one product, quantity always 1
-  const finalQuantity = productType === "téléphone" ? 1 : Math.max(1, parseInt(String(quantity)) || 1);
-
-  const [row] = await db.insert(productsTable).values({
-    productId,
-    imei: productType === "téléphone" ? (imei || null) : null,
-    product,
-    brand: brand || null,
-    capacity: productType === "téléphone" ? (capacity || null) : null,
-    color: productType === "téléphone" ? (color || null) : null,
-    phoneState: productType === "téléphone" ? (phoneState || null) : null,
-    supplier: supplier || null,
-    purchasePrice: isAdmin && purchasePrice !== undefined && purchasePrice !== "" ? String(purchasePrice) : null,
-    sellingPrice: sellingPrice !== undefined && sellingPrice !== "" ? String(sellingPrice) : null,
-    status: status || "en_stock",
-    entryDate,
-    productType,
-    quantity: finalQuantity,
-    entryMethod: productType === "téléphone" ? (entryMethod || "achat") : null,
-    createdByUserId: req.session!.userId!,
-  }).returning();
+  let row: typeof productsTable.$inferSelect;
+  try {
+    [row] = await db.insert(productsTable).values({
+      productId,
+      imei: normalizedProductType === "téléphone" ? trimmedImei : null,
+      product: cleanText(product)!,
+      brand: cleanText(brand),
+      capacity: cleanText(capacity),
+      color: cleanText(color),
+      phoneState: normalizedProductType === "téléphone" ? cleanText(phoneState) : null,
+      supplier: selectedEntryMethod === "particulier" ? null : cleanText(supplier),
+      individualName: selectedEntryMethod === "particulier" ? cleanText(individualName) : null,
+      individualPhone: selectedEntryMethod === "particulier" ? cleanText(individualPhone) : null,
+      purchasePrice: isAdmin && purchasePrice !== undefined && purchasePrice !== "" ? String(purchasePrice) : null,
+      sellingPrice: sellingPrice !== undefined && sellingPrice !== "" ? String(sellingPrice) : null,
+      status: status || "en_stock",
+      entryDate,
+      productType: normalizedProductType,
+      quantity: finalQuantity,
+      entryMethod: normalizedProductType === "téléphone" ? selectedEntryMethod : null,
+      createdByUserId: req.session!.userId!,
+    }).returning();
+  } catch (error) {
+    if (isUniqueViolation(error) && (isPhoneImeiIndex(error) || normalizedProductType === "téléphone")) {
+      res.status(409).json({ error: "Ce téléphone existe déjà en stock (IMEI déjà enregistré).", code: "DUPLICATE_IMEI" });
+      return;
+    }
+    if (isUniqueViolation(error) && (isAccessoryDuplicateIndex(error) || normalizedProductType === "accessoire")) {
+      const duplicate = await findActiveAccessoryDuplicate({ product, brand, capacity, color });
+      res.status(409).json({
+        error: "Cet accessoire existe déjà en stock. Souhaitez-vous simplement ajouter cette quantité au stock existant ?",
+        code: "DUPLICATE_ACCESSORY",
+        existingProductId: duplicate?.id,
+        existingProduct: duplicate ? mapProduct(duplicate, isAdmin) : null,
+      });
+      return;
+    }
+    throw error;
+  }
 
   await db.insert(movementsTable).values({
     movementType: "achat",
@@ -153,10 +235,41 @@ router.post("/", requireAuth, async (req, res): Promise<void> => {
     productId: row.id,
     productRef: row.productId,
     imei: row.imei,
-    description: `Ajout ${productType === "accessoire" ? "accessoire" : "téléphone"}: ${product}${brand ? " " + brand : ""} (${productId})${finalQuantity > 1 ? ` — Qté: ${finalQuantity}` : ""}`,
+    description: `Ajout ${normalizedProductType === "accessoire" ? "accessoire" : "téléphone"}${normalizedProductType === "téléphone" ? ` (${selectedEntryMethod})` : ""}: ${product}${brand ? " " + brand : ""} (${productId})${finalQuantity > 1 ? ` — Qté: ${finalQuantity}` : ""}`,
   });
 
   res.status(201).json(mapProduct(row, isAdmin));
+});
+
+router.post("/:id/add-quantity", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id));
+  const quantityToAdd = Math.max(1, parseInt(String(req.body?.quantity ?? "1")) || 1);
+  const isAdmin = req.session!.role === "admin";
+
+  const [existing] = await db.select().from(productsTable).where(eq(productsTable.id, id)).limit(1);
+  if (!existing) { res.status(404).json({ error: "Produit non trouvé" }); return; }
+  if (existing.productType !== "accessoire") {
+    res.status(400).json({ error: "Cette opération est réservée aux accessoires" });
+    return;
+  }
+
+  const [row] = await db.update(productsTable)
+    .set({ quantity: sql`${productsTable.quantity} + ${quantityToAdd}`, status: "en_stock" })
+    .where(eq(productsTable.id, id))
+    .returning();
+
+  await db.insert(movementsTable).values({
+    movementType: "achat",
+    movementDate: nowDateStr(),
+    movementTime: nowTimeStr(),
+    userId: req.session!.userId!,
+    productId: row.id,
+    productRef: row.productId,
+    imei: row.imei,
+    description: `Réapprovisionnement accessoire: ${row.product}${row.brand ? " " + row.brand : ""} (${row.productId}) — Qté ajoutée: ${quantityToAdd}`,
+  });
+
+  res.json(mapProduct(row, isAdmin));
 });
 
 router.get("/:id", requireAuth, async (req, res): Promise<void> => {
@@ -181,7 +294,7 @@ router.patch("/:id", requireAuth, async (req, res): Promise<void> => {
   const [existing] = await db.select().from(productsTable).where(eq(productsTable.id, id)).limit(1);
   if (!existing) { res.status(404).json({ error: "Produit non trouvé" }); return; }
 
-  const { imei, product, brand, capacity, color, phoneState, supplier, purchasePrice, sellingPrice, status, entryDate, quantity, entryMethod } = req.body;
+  const { imei, product, brand, capacity, color, phoneState, supplier, individualName, individualPhone, purchasePrice, sellingPrice, status, entryDate, quantity, entryMethod } = req.body;
 
   if (!isAdmin && purchasePrice !== undefined) {
     res.status(403).json({ error: "Seul l'admin peut modifier le prix d'achat" });
@@ -192,7 +305,7 @@ router.patch("/:id", requireAuth, async (req, res): Promise<void> => {
     const [dup] = await db.select({ id: productsTable.id }).from(productsTable)
       .where(eq(productsTable.imei, imei)).limit(1);
     if (dup) {
-      res.status(409).json({ error: `Un autre produit avec l'IMEI ${imei} existe déjà` });
+      res.status(409).json({ error: "Ce téléphone existe déjà en stock (IMEI déjà enregistré)." });
       return;
     }
   }
@@ -205,6 +318,8 @@ router.patch("/:id", requireAuth, async (req, res): Promise<void> => {
   if (color !== undefined) updates.color = color || null;
   if (phoneState !== undefined) updates.phoneState = phoneState || null;
   if (supplier !== undefined) updates.supplier = supplier || null;
+  if (individualName !== undefined) updates.individualName = individualName || null;
+  if (individualPhone !== undefined) updates.individualPhone = individualPhone || null;
   if (isAdmin && purchasePrice !== undefined) updates.purchasePrice = purchasePrice !== "" ? String(purchasePrice) : null;
   if (sellingPrice !== undefined) updates.sellingPrice = sellingPrice !== "" ? String(sellingPrice) : null;
   if (status) updates.status = status;
